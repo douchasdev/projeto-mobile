@@ -1,98 +1,142 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
+// src/app/index.tsx
+
+import {
+  FlatList,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
-  return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
+import ActivityCard from '../components/ActivityCard';
+import { useActivities } from '../contexts/ActivitiesContext';
 
 export default function HomeScreen() {
+  const {
+    activities,
+    showCompleted,
+    toggleActivityCompleted,
+  } = useActivities();
+
+  // Define quais atividades devem aparecer na Home.
+  // Se showCompleted for false, mostra apenas as pendentes.
+  const visibleActivities = showCompleted
+    ? activities
+    : activities.filter(
+        (activity) => !activity.completed
+      );
+
+  // Quantidade de atividades pendentes
+  const pendingCount = activities.filter(
+    (activity) => !activity.completed
+  ).length;
+
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
+    <SafeAreaView style={styles.container}>
+      <FlatList
+        data={visibleActivities}
+        keyExtractor={(item) => item.id}
 
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
+        renderItem={({ item }) => (
+          <ActivityCard
+            activity={item}
+            onToggleCompleted={() =>
+              toggleActivityCompleted(item.id)
+            }
           />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
+        )}
 
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+        contentContainerStyle={[
+          styles.listContent,
+          visibleActivities.length === 0 &&
+            styles.emptyListContent,
+        ]}
+
+        ListHeaderComponent={
+          visibleActivities.length > 0 ? (
+            <View style={styles.header}>
+              <Text style={styles.title}>
+                Minhas atividades
+              </Text>
+
+              <Text style={styles.subtitle}>
+                {pendingCount === 0
+                  ? 'Nenhuma atividade pendente'
+                  : pendingCount === 1
+                    ? '1 atividade pendente'
+                    : `${pendingCount} atividades pendentes`}
+              </Text>
+            </View>
+          ) : null
+        }
+
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyTitle}>
+              {activities.length === 0
+                ? 'Nenhuma atividade'
+                : 'Nenhuma atividade pendente'}
+            </Text>
+
+            <Text style={styles.emptyText}>
+              {activities.length === 0
+                ? 'As atividades que você criar aparecerão aqui.'
+                : 'Todas as suas atividades foram concluídas.'}
+            </Text>
+          </View>
+        }
+      />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#F9FAFB',
+  },
+
+  listContent: {
+    paddingHorizontal: 20,
+    paddingTop: 80,
+    paddingBottom: 20,
+  },
+
+  emptyListContent: {
+    flexGrow: 1,
     justifyContent: 'center',
-    flexDirection: 'row',
   },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
+
+  header: {
+    marginBottom: 20,
   },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
-  },
+
   title: {
+    fontSize: 24,
+    fontWeight: '600',
+  },
+
+  subtitle: {
+    fontSize: 14,
+    color: '#667085',
+    marginTop: 4,
+  },
+
+  emptyContainer: {
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+
+  emptyText: {
+    fontSize: 14,
+    color: '#667085',
     textAlign: 'center',
-  },
-  code: {
-    textTransform: 'uppercase',
-  },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
   },
 });

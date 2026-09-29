@@ -1,18 +1,44 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from 'react-native';
+import { NativeTabs } from 'expo-router/unstable-native-tabs';
 
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
-
-SplashScreen.preventAutoHideAsync();
+import { ActivitiesProvider } from '../contexts/ActivitiesContext';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <AppTabs />
-    </ThemeProvider>
+    <ActivitiesProvider>
+      <NativeTabs>
+        <NativeTabs.Trigger name="index">
+          <NativeTabs.Trigger.Label>
+            Home
+          </NativeTabs.Trigger.Label>
+
+          <NativeTabs.Trigger.Icon
+            sf="house.fill"
+            md="home"
+          />
+        </NativeTabs.Trigger>
+
+        <NativeTabs.Trigger name="create">
+          <NativeTabs.Trigger.Icon
+            sf="plus"
+            md="add"
+          />
+
+          <NativeTabs.Trigger.Label>
+            Criar
+          </NativeTabs.Trigger.Label>
+        </NativeTabs.Trigger>
+
+        <NativeTabs.Trigger name="profile">
+          <NativeTabs.Trigger.Icon
+            sf="person"
+            md="person"
+          />
+
+          <NativeTabs.Trigger.Label>
+            Perfil
+          </NativeTabs.Trigger.Label>
+        </NativeTabs.Trigger>
+      </NativeTabs>
+    </ActivitiesProvider>
   );
 }
