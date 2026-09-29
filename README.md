@@ -839,15 +839,8 @@ Uma possível evolução do projeto seria utilizar armazenamento local, como **A
 Algumas funcionalidades que podem ser adicionadas futuramente são:
 
 - Persistência local utilizando AsyncStorage;
-- Edição de atividades;
-- Exclusão de atividades;
-- Ordenação por data e horário;
-- Filtros de atividades;
-- Categorias;
-- Definição de prioridades;
-- Notificações;
-- Personalização do perfil;
-- Melhorias de acessibilidade.
+- Compartilhamento de atividade com outros usuarios;
+- Integração a API de geolocalização.
 
 ---
 
