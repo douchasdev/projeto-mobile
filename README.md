@@ -43,6 +43,15 @@ Todos os campos são obrigatórios.
 
 A seleção de data e horário é realizada utilizando o `DateTimePicker`.
 
+O campo **Local** permite duas formas de preenchimento:
+
+- **Manual:** o usuário informa o endereço ou nome do local.
+- **Automática:** o usuário utiliza o botão **Usar minha localização**, que acessa os serviços de localização do dispositivo para obter sua posição geográfica.
+
+Na localização automática, a aplicação solicita permissão de acesso, captura latitude e longitude e utiliza geocodificação reversa para tentar converter as coordenadas em um endereço legível.
+
+Caso a localização automática não esteja disponível, o usuário poderá continuar preenchendo o campo manualmente.
+
 Antes da criação, os campos são validados. Caso algum campo obrigatório não tenha sido preenchido, a aplicação apresenta uma mensagem ao usuário.
 
 Após a validação, a nova atividade é adicionada ao estado compartilhado da aplicação e passa a ser disponibilizada para as demais telas.
@@ -69,6 +78,8 @@ As estatísticas são calculadas a partir da lista compartilhada de atividades e
 - Expo Router;
 - React Native Safe Area Context;
 - React Native Community DateTimePicker.
+- Expo Location (`expo-location`) — acesso aos serviços
+  de localização do dispositivo e geocodificação reversa.
 
 ---
 
@@ -681,6 +692,81 @@ Os valores selecionados são armazenados no State do formulário.
 
 ---
 
+## Geolocalização e integração com hardware
+
+A aplicação utiliza a biblioteca **Expo Location (`expo-location`)** para acessar os serviços de localização do dispositivo móvel.
+
+Essa integração permite preencher automaticamente o campo **Local** durante o cadastro de uma atividade, utilizando a posição geográfica atual do usuário.
+
+### Funcionamento
+
+O processo de obtenção da localização segue estas etapas:
+
+1. O usuário pressiona o botão **Usar minha localização**.
+2. A aplicação verifica se os serviços de localização do dispositivo estão ativados.
+3. É solicitada a permissão de acesso à localização em primeiro plano (*foreground*).
+4. Após a autorização, a aplicação tenta obter a posição atual do dispositivo.
+5. As coordenadas de latitude e longitude são capturadas.
+6. A aplicação utiliza geocodificação reversa (*reverse geocoding*) para tentar identificar um endereço.
+7. O campo **Local** é preenchido automaticamente.
+
+A obtenção da posição utiliza `Location.Accuracy.Balanced`, buscando equilibrar precisão e consumo de bateria.
+
+### Principais APIs utilizadas
+
+| API | Finalidade |
+|---|---|
+| `hasServicesEnabledAsync()` | Verificar se os serviços de localização estão ativados |
+| `requestForegroundPermissionsAsync()` | Solicitar permissão de localização |
+| `getCurrentPositionAsync()` | Obter a posição atual do dispositivo |
+| `getLastKnownPositionAsync()` | Recuperar uma localização recente quando necessário |
+| `reverseGeocodeAsync()` | Converter coordenadas em endereço |
+
+### Tratamento de erros
+
+A implementação contempla diferentes situações que podem ocorrer durante a obtenção da localização.
+
+| Situação | Tratamento |
+|---|---|
+| Serviços de localização desativados | Exibe uma mensagem solicitando a ativação |
+| Permissão negada | Informa a necessidade da permissão e oferece acesso às configurações |
+| Falha na obtenção da posição atual | Tenta recuperar a última posição conhecida |
+| Tempo de espera excedido | Aplica timeout de 10 segundos à espera pela posição atual |
+| Localização anterior desatualizada | Rejeita posições com mais de 60 segundos |
+| Falha na geocodificação reversa | Preenche o campo com latitude e longitude |
+| Solicitação cancelada ou invalidada | Impede que resultados antigos sobrescrevam o campo |
+| Falha geral de localização | Exibe mensagem e permite preenchimento manual |
+
+A consulta da última posição conhecida possui limite de espera de 3 segundos, enquanto a geocodificação reversa possui limite de 5 segundos.
+
+Os limites de espera não garantem o cancelamento das operações nativas, mas permitem que a aplicação deixe de aguardá-las.
+
+### Permissões e privacidade
+
+A aplicação solicita acesso à localização somente quando o usuário aciona a funcionalidade de preenchimento automático.
+
+É utilizada apenas a permissão de localização em primeiro plano (*foreground*). Não há rastreamento contínuo nem solicitação de localização em segundo plano.
+
+A localização obtida é utilizada para preencher o campo **Local**. A atividade armazena esse valor como texto, sem necessidade de modificar o modelo de dados existente.
+
+### Limitações
+
+- A precisão depende dos serviços de localização e das condições do dispositivo.
+- O endereço retornado pode ser aproximado ou incompleto.
+- A geocodificação reversa pode não conseguir identificar um endereço.
+- A última posição conhecida pode não representar a localização exata no momento do cadastro.
+- A funcionalidade não utiliza mapas interativos nem monitoramento contínuo.
+
+### Biblioteca utilizada
+
+A dependência pode ser instalada com:
+
+```bash
+npx expo install expo-location
+```
+
+Documentação oficial: https://docs.expo.dev/versions/v57.0.0/sdk/location/
+
 ## Validação do formulário
 
 Antes de criar uma atividade, o formulário verifica se todos os campos obrigatórios foram preenchidos.
@@ -840,7 +926,6 @@ Algumas funcionalidades que podem ser adicionadas futuramente são:
 
 - Persistência local utilizando AsyncStorage;
 - Compartilhamento de atividade com outros usuarios;
-- Integração a API de geolocalização.
 
 ---
 

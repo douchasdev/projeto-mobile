@@ -1,21 +1,22 @@
-import { StyleSheet } from 'react-native';
+
+import { StyleSheet } from "react-native";
 
 export const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
     padding: 24,
   },
 
   form: {
-    width: '100%',
+    width: "100%",
     maxWidth: 500,
-    alignSelf: 'center',
+    alignSelf: "center",
   },
 
   title: {
     fontSize: 24,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 24,
   },
 
@@ -25,38 +26,30 @@ export const styles = StyleSheet.create({
 
   label: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
     marginBottom: 6,
   },
 
   input: {
     height: 48,
-
     borderWidth: 1,
-    borderColor: '#D0D5DD',
+    borderColor: "#D0D5DD",
     borderRadius: 8,
-
     paddingHorizontal: 12,
-
     fontSize: 16,
-
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
 
   selector: {
     height: 48,
-
     borderWidth: 1,
-    borderColor: '#D0D5DD',
+    borderColor: "#D0D5DD",
     borderRadius: 8,
-
     paddingHorizontal: 12,
-
-    backgroundColor: '#FFFFFF',
-
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
 
   selectorPressed: {
@@ -69,59 +62,76 @@ export const styles = StyleSheet.create({
 
   placeholderText: {
     fontSize: 16,
-    color: '#888888',
+    color: "#888888",
   },
 
   selectorIcon: {
     fontSize: 18,
-    color: '#667085',
+    color: "#667085",
+  },
+
+  // Botão de localização automática.
+  locationButton: {
+    minHeight: 44,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: "#2563EB",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#EFF6FF",
+  },
+
+  locationButtonText: {
+    color: "#2563EB",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+
+  // Aparência enquanto a localização está sendo obtida.
+  locationButtonDisabled: {
+    opacity: 0.6,
   },
 
   actions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-
+    flexDirection: "row",
+    justifyContent: "flex-end",
     gap: 12,
     marginTop: 16,
   },
 
   cancelButton: {
     height: 48,
-
     paddingHorizontal: 20,
-
-    justifyContent: 'center',
-    alignItems: 'center',
-
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: '#D0D5DD',
+    borderColor: "#D0D5DD",
     borderRadius: 8,
-
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
 
   createButton: {
     height: 48,
-
     paddingHorizontal: 24,
-
-    justifyContent: 'center',
-    alignItems: 'center',
-
-    backgroundColor: '#2563EB',
-
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#2563EB",
     borderRadius: 8,
   },
 
   cancelButtonText: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: "500",
   },
 
   createButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 
   buttonPressed: {
