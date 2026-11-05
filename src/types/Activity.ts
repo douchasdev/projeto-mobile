@@ -1,5 +1,6 @@
 export type Activity = {
   id: string;
+  ownerId: string;
   title: string;
   date: Date;
   time: Date;
@@ -7,4 +8,12 @@ export type Activity = {
   completed: boolean;
 };
 
-export type NewActivity = Omit<Activity, 'id' | 'completed'>;
+export type NewActivity = Omit<
+  Activity,
+  "id" | "ownerId" | "completed"
+>;
+
+export type UpdateActivity = Pick<
+  Activity,
+  "title" | "date" | "time" | "location"
+>;
