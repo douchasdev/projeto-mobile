@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -19,7 +20,10 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Location from "expo-location";
 
 import { useActivities } from "../../contexts/ActivitiesContext";
-import { Activity } from "../../types/Activity";
+import { getApiErrorMessage } from "../../services/api";
+
+import type { Activity } from "../../types/Activity";
+
 import { styles } from "./EditActivityModal.styles";
 
 type Props = {
@@ -27,6 +31,7 @@ type Props = {
   onClose: () => void;
 };
 
+// Configurações de localização.
 const LOCATION_TIMEOUT_MS = 10000;
 const LAST_LOCATION_MAX_AGE_MS = 60000;
 const FALLBACK_TIMEOUT_MS = 3000;
@@ -40,39 +45,80 @@ class LocationTimeoutError extends Error {
 }
 
 // Limita a espera por uma operação assíncrona.
-// Não cancela necessariamente a operação nativa.
-function withTimeout<T>(promise: Promise<T>, milliseconds: number): Promise<T> {
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+// A operação nativa pode continuar em execução.
+function withTimeout<T>(
+  promise: Promise<T>,
+  milliseconds: number
+): Promise<T> {
+  let timeoutId:
+    | ReturnType<typeof setTimeout>
+    | undefined;
 
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => {
-      reject(new LocationTimeoutError());
-    }, milliseconds);
-  });
+  const timeoutPromise = new Promise<never>(
+    (_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new LocationTimeoutError());
+      }, milliseconds);
+    }
+  );
 
-  return Promise.race([promise, timeoutPromise]).finally(() => {
+  return Promise.race([
+    promise,
+    timeoutPromise,
+  ]).finally(() => {
     if (timeoutId !== undefined) {
       clearTimeout(timeoutId);
     }
   });
 }
 
-export default function EditActivityModal({ activity, onClose }: Props) {
+export default function EditActivityModal({
+  activity,
+  onClose,
+}: Props) {
   const { updateActivity } = useActivities();
 
-  const [title, setTitle] = useState(activity.title);
-  const [location, setLocation] = useState(activity.location);
-  const [date, setDate] = useState(activity.date);
-  const [time, setTime] = useState(activity.time);
+  // Dados atuais da atividade.
+  const [title, setTitle] = useState(
+    activity.title
+  );
 
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showTimePicker, setShowTimePicker] = useState(false);
-  const [loadingLocation, setLoadingLocation] = useState(false);
+  const [description, setDescription] = useState(
+    activity.description ?? ""
+  );
+
+  const [location, setLocation] = useState(
+    activity.location
+  );
+
+  const [date, setDate] = useState(
+    activity.date
+  );
+
+  const [time, setTime] = useState(
+    activity.time
+  );
+
+  // Controle dos seletores de data e horário.
+  const [showDatePicker, setShowDatePicker] =
+    useState(false);
+
+  const [showTimePicker, setShowTimePicker] =
+    useState(false);
+
+  // Controle da geolocalização.
+  const [loadingLocation, setLoadingLocation] =
+    useState(false);
+
+  // Controle do salvamento na API.
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
 
   // Identifica a solicitação de GPS mais recente.
   const requestId = useRef(0);
 
-  // Invalida consultas pendentes quando o modal for fechado.
+  // Invalida solicitações pendentes quando
+  // o modal é desmontado.
   useEffect(() => {
     return () => {
       requestId.current += 1;
@@ -80,37 +126,55 @@ export default function EditActivityModal({ activity, onClose }: Props) {
   }, []);
 
   function handleLocationTextChange(value: string) {
-    // Impede que uma consulta antiga sobrescreva
-    // o endereço digitado pelo usuário.
+    // A entrada manual tem prioridade sobre
+    // resultados pendentes do GPS.
     requestId.current += 1;
+
     setLoadingLocation(false);
     setLocation(value);
   }
 
   async function handleGetLocation() {
-    if (loadingLocation) return;
+    if (
+      loadingLocation ||
+      savingRef.current
+    ) {
+      return;
+    }
 
     const currentRequest = ++requestId.current;
+
     setLoadingLocation(true);
 
     try {
-      // 1. Verifica se a localização está ativada.
-      const enabled = await Location.hasServicesEnabledAsync();
+      // 1. Verifica se a localização está ativa.
+      const enabled =
+        await Location.hasServicesEnabledAsync();
 
-      if (currentRequest !== requestId.current) return;
+      if (
+        currentRequest !== requestId.current
+      ) {
+        return;
+      }
 
       if (!enabled) {
         Alert.alert(
           "Localização desativada",
-          "Ative a localização do celular e tente novamente. Você também pode digitar o local manualmente.",
+          "Ative a localização do celular e tente novamente. Você também pode digitar o local manualmente."
         );
         return;
       }
 
-      // 2. Solicita permissão em primeiro plano.
-      const permission = await Location.requestForegroundPermissionsAsync();
+      // 2. Solicita permissão de localização
+      // em primeiro plano.
+      const permission =
+        await Location.requestForegroundPermissionsAsync();
 
-      if (currentRequest !== requestId.current) return;
+      if (
+        currentRequest !== requestId.current
+      ) {
+        return;
+      }
 
       if (!permission.granted) {
         Alert.alert(
@@ -127,12 +191,12 @@ export default function EditActivityModal({ activity, onClose }: Props) {
                 Linking.openSettings().catch(() => {
                   Alert.alert(
                     "Erro",
-                    "Não foi possível abrir as configurações do celular.",
+                    "Não foi possível abrir as configurações do celular."
                   );
                 });
               },
             },
-          ],
+          ]
         );
         return;
       }
@@ -146,45 +210,70 @@ export default function EditActivityModal({ activity, onClose }: Props) {
           Location.getCurrentPositionAsync({
             accuracy: Location.Accuracy.Balanced,
           }),
-          LOCATION_TIMEOUT_MS,
+          LOCATION_TIMEOUT_MS
         );
       } catch (currentPositionError) {
-        if (currentRequest !== requestId.current) return;
+        if (
+          currentRequest !== requestId.current
+        ) {
+          return;
+        }
 
-        console.warn("Falha ao obter posição atual:", currentPositionError);
+        console.warn(
+          "Falha ao obter posição atual:",
+          currentPositionError
+        );
 
-        // 4. Caso falhe, tenta a última posição conhecida.
-        let lastKnownPosition: Location.LocationObject | null = null;
+        // 4. Tenta recuperar a última posição.
+        let lastKnownPosition:
+          | Location.LocationObject
+          | null = null;
 
         try {
           lastKnownPosition = await withTimeout(
             Location.getLastKnownPositionAsync({
               maxAge: LAST_LOCATION_MAX_AGE_MS,
             }),
-            FALLBACK_TIMEOUT_MS,
+            FALLBACK_TIMEOUT_MS
           );
         } catch (fallbackError) {
-          console.warn("Falha ao recuperar última posição:", fallbackError);
+          console.warn(
+            "Falha ao recuperar última posição:",
+            fallbackError
+          );
         }
 
-        if (currentRequest !== requestId.current) return;
+        if (
+          currentRequest !== requestId.current
+        ) {
+          return;
+        }
 
         const now = Date.now();
 
         const isRecent =
           lastKnownPosition !== null &&
           lastKnownPosition.timestamp <= now &&
-          now - lastKnownPosition.timestamp <= LAST_LOCATION_MAX_AGE_MS;
+          now - lastKnownPosition.timestamp <=
+            LAST_LOCATION_MAX_AGE_MS;
 
-        if (!lastKnownPosition || !isRecent) {
-          const timedOut = currentPositionError instanceof LocationTimeoutError;
+        if (
+          !lastKnownPosition ||
+          !isRecent
+        ) {
+          const timedOut =
+            currentPositionError instanceof
+            LocationTimeoutError;
 
           Alert.alert(
-            timedOut ? "Tempo de espera excedido" : "Localização indisponível",
+            timedOut
+              ? "Tempo de espera excedido"
+              : "Localização indisponível",
             timedOut
               ? "O celular demorou mais de 10 segundos para obter sua posição e não encontramos uma localização recente. Tente novamente ou digite o local manualmente."
-              : "Não foi possível determinar sua posição nem recuperar uma localização recente. Verifique o sinal e tente novamente.",
+              : "Não foi possível determinar sua posição nem recuperar uma localização recente. Verifique o sinal e tente novamente."
           );
+
           return;
         }
 
@@ -192,31 +281,46 @@ export default function EditActivityModal({ activity, onClose }: Props) {
         usedLastKnownPosition = true;
       }
 
-      if (currentRequest !== requestId.current) return;
+      if (
+        currentRequest !== requestId.current
+      ) {
+        return;
+      }
 
-      const { latitude, longitude } = position.coords;
+      const {
+        latitude,
+        longitude,
+      } = position.coords;
 
-      // 5. Coordenadas como alternativa ao endereço.
-      let formattedLocation = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+      // 5. Mantém as coordenadas como alternativa.
+      let formattedLocation =
+        `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
 
       let addressFound = false;
 
-      // 6. Tenta converter coordenadas em endereço.
+      // 6. Converte as coordenadas em endereço.
       try {
         const addresses = await withTimeout(
           Location.reverseGeocodeAsync({
             latitude,
             longitude,
           }),
-          GEOCODING_TIMEOUT_MS,
+          GEOCODING_TIMEOUT_MS
         );
 
-        if (currentRequest !== requestId.current) return;
+        if (
+          currentRequest !== requestId.current
+        ) {
+          return;
+        }
 
         const address = addresses[0];
 
         if (address) {
-          const street = [address.street, address.streetNumber]
+          const street = [
+            address.street,
+            address.streetNumber,
+          ]
             .filter(Boolean)
             .join(", ");
 
@@ -235,20 +339,28 @@ export default function EditActivityModal({ activity, onClose }: Props) {
       } catch (geocodingError) {
         console.warn(
           "Falha ao converter coordenadas em endereço:",
-          geocodingError,
+          geocodingError
         );
       }
 
-      if (currentRequest !== requestId.current) return;
+      if (
+        currentRequest !== requestId.current
+      ) {
+        return;
+      }
 
-      // 7. Preenche o campo Local.
+      // 7. Atualiza o campo Local.
       setLocation(formattedLocation);
 
-      // 8. Informa a utilização de dados alternativos.
+      // 8. Informa quando foi necessário
+      // utilizar uma posição anterior.
       if (usedLastKnownPosition) {
         const secondsAgo = Math.max(
           0,
-          Math.round((Date.now() - position.timestamp) / 1000),
+          Math.round(
+            (Date.now() - position.timestamp) /
+              1000
+          )
         );
 
         const warning = addressFound
@@ -257,77 +369,150 @@ export default function EditActivityModal({ activity, onClose }: Props) {
 
         Alert.alert(
           "Última localização conhecida",
-          `Não foi possível obter sua posição atual. Utilizamos uma localização registrada há aproximadamente ${secondsAgo} segundos. ${warning}`,
+          `Não foi possível obter sua posição atual. Utilizamos uma localização registrada há aproximadamente ${secondsAgo} segundos. ${warning}`
         );
       } else if (!addressFound) {
         Alert.alert(
           "Endereço não identificado",
-          "Sua posição foi obtida, mas não foi possível identificar o endereço. As coordenadas foram preenchidas no campo Local.",
+          "Sua posição foi obtida, mas não foi possível identificar o endereço. As coordenadas foram preenchidas no campo Local."
         );
       }
-    } catch (error) {
-      if (currentRequest !== requestId.current) return;
+    } catch (error: unknown) {
+      if (
+        currentRequest !== requestId.current
+      ) {
+        return;
+      }
 
-      console.error("Erro ao obter localização na edição:", error);
+      console.error(
+        "Erro ao obter localização na edição:",
+        error
+      );
 
       Alert.alert(
         "Erro de localização",
-        "Ocorreu um problema ao acessar os serviços de localização. Verifique as permissões, tente novamente ou digite o local manualmente.",
+        "Ocorreu um problema ao acessar os serviços de localização. Verifique as permissões, tente novamente ou digite o local manualmente."
       );
     } finally {
-      if (currentRequest === requestId.current) {
+      if (
+        currentRequest === requestId.current
+      ) {
         setLoadingLocation(false);
       }
     }
   }
 
-  function handleSave() {
+  // Salva as alterações no backend.
+  async function handleSave() {
+    // Impede envios duplicados.
+    if (savingRef.current) {
+      return;
+    }
+
     if (loadingLocation) {
       Alert.alert(
         "Aguarde",
-        "Espere a localização ser obtida antes de salvar.",
+        "Espere a localização ser obtida antes de salvar."
       );
       return;
     }
 
-    if (!title.trim() || !location.trim()) {
-      Alert.alert("Campos obrigatórios", "Preencha a atividade e o local.");
+    const trimmedTitle = title.trim();
+    const trimmedDescription = description.trim();
+    const trimmedLocation = location.trim();
+
+    if (
+      !trimmedTitle ||
+      !trimmedLocation
+    ) {
+      Alert.alert(
+        "Campos obrigatórios",
+        "Preencha a atividade e o local."
+      );
       return;
     }
 
-    if (Number.isNaN(date.getTime()) || Number.isNaN(time.getTime())) {
+    if (trimmedLocation.length > 255) {
+      Alert.alert(
+        "Local muito longo",
+        "O local deve ter no máximo 255 caracteres."
+      );
+      return;
+    }
+
+    if (
+      Number.isNaN(date.getTime()) ||
+      Number.isNaN(time.getTime())
+    ) {
       Alert.alert(
         "Data ou horário inválido",
-        "Selecione uma data e um horário válidos.",
+        "Selecione uma data e um horário válidos."
       );
       return;
     }
 
-    const updated = updateActivity(activity.id, {
-      title: title.trim(),
-      location: location.trim(),
-      date,
-      time,
-    });
+    savingRef.current = true;
+    setSaving(true);
 
-    if (!updated) {
+    try {
+      // Aguarda o NestJS atualizar o registro.
+      const updated = await updateActivity(
+        activity.id,
+        {
+          title: trimmedTitle,
+          description: trimmedDescription,
+          location: trimmedLocation,
+          date,
+          time,
+        }
+      );
+
+      if (!updated) {
+        Alert.alert(
+          "Não foi possível editar",
+          "Verifique os campos informados."
+        );
+        return;
+      }
+
+      // Fecha somente após a confirmação da API.
+      onClose();
+
       Alert.alert(
-        "Não foi possível editar",
-        "A atividade não foi encontrada ou não pertence ao usuário atual.",
+        "Sucesso",
+        "Atividade atualizada com sucesso."
       );
+    } catch (error: unknown) {
+      console.error(
+        "Erro ao atualizar atividade:",
+        error
+      );
+
+      Alert.alert(
+        "Erro ao atualizar atividade",
+        getApiErrorMessage(error)
+      );
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+  }
+
+  function handleClose() {
+    if (savingRef.current) {
       return;
     }
 
+    // Invalida possíveis consultas de GPS pendentes.
+    requestId.current += 1;
     onClose();
-
-    Alert.alert("Sucesso", "Atividade atualizada com sucesso.");
   }
 
   return (
     <Modal
       visible
       animationType="slide"
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
       presentationStyle="fullScreen"
     >
       <SafeAreaView style={styles.container}>
@@ -335,15 +520,19 @@ export default function EditActivityModal({ activity, onClose }: Props) {
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.title}>Editar atividade</Text>
+          <Text style={styles.title}>
+            Editar atividade
+          </Text>
 
           <Text style={styles.subtitle}>
             Altere as informações e salve suas modificações.
           </Text>
 
-          {/* Nome */}
+          {/* Atividade */}
           <View style={styles.field}>
-            <Text style={styles.label}>Atividade</Text>
+            <Text style={styles.label}>
+              Atividade
+            </Text>
 
             <TextInput
               style={styles.input}
@@ -351,16 +540,50 @@ export default function EditActivityModal({ activity, onClose }: Props) {
               onChangeText={setTitle}
               placeholder="Nome da atividade"
               maxLength={120}
+              editable={!saving}
+            />
+          </View>
+
+          {/* Descrição */}
+          <View style={styles.field}>
+            <Text style={styles.label}>
+              Descrição (opcional)
+            </Text>
+
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  minHeight: 90,
+                  paddingTop: 12,
+                  textAlignVertical: "top",
+                },
+              ]}
+              value={description}
+              onChangeText={setDescription}
+              placeholder="Descrição da atividade"
+              multiline
+              numberOfLines={3}
+              maxLength={1000}
+              editable={!saving}
             />
           </View>
 
           {/* Data */}
           <View style={styles.field}>
-            <Text style={styles.label}>Data</Text>
+            <Text style={styles.label}>
+              Data
+            </Text>
 
             <Pressable
-              style={styles.selector}
-              onPress={() => setShowDatePicker(true)}
+              style={[
+                styles.selector,
+                saving && { opacity: 0.6 },
+              ]}
+              onPress={() =>
+                setShowDatePicker(true)
+              }
+              disabled={saving}
             >
               <Text style={styles.selectorText}>
                 {date.toLocaleDateString("pt-BR")}
@@ -372,8 +595,14 @@ export default function EditActivityModal({ activity, onClose }: Props) {
                 value={date}
                 mode="date"
                 display="default"
-                onValueChange={(_, selectedDate) => {
-                  if (selectedDate) {
+                onValueChange={(
+                  _,
+                  selectedDate
+                ) => {
+                  if (
+                    selectedDate &&
+                    !savingRef.current
+                  ) {
                     setDate(selectedDate);
                   }
 
@@ -381,18 +610,28 @@ export default function EditActivityModal({ activity, onClose }: Props) {
                     setShowDatePicker(false);
                   }
                 }}
-                onDismiss={() => setShowDatePicker(false)}
+                onDismiss={() =>
+                  setShowDatePicker(false)
+                }
               />
             )}
           </View>
 
           {/* Horário */}
           <View style={styles.field}>
-            <Text style={styles.label}>Horário</Text>
+            <Text style={styles.label}>
+              Horário
+            </Text>
 
             <Pressable
-              style={styles.selector}
-              onPress={() => setShowTimePicker(true)}
+              style={[
+                styles.selector,
+                saving && { opacity: 0.6 },
+              ]}
+              onPress={() =>
+                setShowTimePicker(true)
+              }
+              disabled={saving}
             >
               <Text style={styles.selectorText}>
                 {time.toLocaleTimeString("pt-BR", {
@@ -408,8 +647,14 @@ export default function EditActivityModal({ activity, onClose }: Props) {
                 mode="time"
                 display="default"
                 is24Hour
-                onValueChange={(_, selectedTime) => {
-                  if (selectedTime) {
+                onValueChange={(
+                  _,
+                  selectedTime
+                ) => {
+                  if (
+                    selectedTime &&
+                    !savingRef.current
+                  ) {
                     setTime(selectedTime);
                   }
 
@@ -417,39 +662,52 @@ export default function EditActivityModal({ activity, onClose }: Props) {
                     setShowTimePicker(false);
                   }
                 }}
-                onDismiss={() => setShowTimePicker(false)}
+                onDismiss={() =>
+                  setShowTimePicker(false)
+                }
               />
             )}
           </View>
 
           {/* Local */}
           <View style={styles.field}>
-            <Text style={styles.label}>Local</Text>
+            <Text style={styles.label}>
+              Local
+            </Text>
 
             <TextInput
               style={styles.input}
               value={location}
               onChangeText={handleLocationTextChange}
               placeholder="Digite o local ou use sua localização"
-              maxLength={240}
+              maxLength={255}
+              editable={!saving}
             />
 
             <Pressable
               style={({ pressed }) => [
                 styles.locationButton,
                 pressed && styles.pressed,
-                loadingLocation && styles.locationButtonDisabled,
+                (loadingLocation || saving) &&
+                  styles.locationButtonDisabled,
               ]}
-              onPress={handleGetLocation}
-              disabled={loadingLocation}
+              onPress={() => {
+                void handleGetLocation();
+              }}
+              disabled={loadingLocation || saving}
               accessibilityRole="button"
               accessibilityLabel="Usar minha localização atual"
             >
               {loadingLocation && (
-                <ActivityIndicator size="small" color="#2563EB" />
+                <ActivityIndicator
+                  size="small"
+                  color="#2563EB"
+                />
               )}
 
-              <Text style={styles.locationButtonText}>
+              <Text
+                style={styles.locationButtonText}
+              >
                 {loadingLocation
                   ? "Obtendo localização..."
                   : "Usar minha localização"}
@@ -463,22 +721,47 @@ export default function EditActivityModal({ activity, onClose }: Props) {
               style={({ pressed }) => [
                 styles.cancelButton,
                 pressed && styles.pressed,
+                saving && { opacity: 0.6 },
               ]}
-              onPress={onClose}
+              onPress={handleClose}
+              disabled={saving}
               accessibilityRole="button"
             >
-              <Text style={styles.cancelButtonText}>Cancelar</Text>
+              <Text
+                style={styles.cancelButtonText}
+              >
+                Cancelar
+              </Text>
             </Pressable>
 
             <Pressable
               style={({ pressed }) => [
                 styles.saveButton,
                 pressed && styles.pressed,
+                (saving || loadingLocation) && {
+                  opacity: 0.6,
+                },
               ]}
-              onPress={handleSave}
+              onPress={() => {
+                void handleSave();
+              }}
+              disabled={saving || loadingLocation}
               accessibilityRole="button"
             >
-              <Text style={styles.saveButtonText}>Salvar alterações</Text>
+              {saving && (
+                <ActivityIndicator
+                  size="small"
+                  color="#FFFFFF"
+                />
+              )}
+
+              <Text
+                style={styles.saveButtonText}
+              >
+                {saving
+                  ? "Salvando..."
+                  : "Salvar alterações"}
+              </Text>
             </Pressable>
           </View>
         </ScrollView>

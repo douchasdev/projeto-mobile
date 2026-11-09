@@ -8,6 +8,7 @@ import {
   Linking,
   Platform,
   Pressable,
+  ScrollView,
   Text,
   TextInput,
   View,
@@ -17,6 +18,8 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Location from "expo-location";
 
 import { useActivities } from "../../contexts/ActivitiesContext";
+import { getApiErrorMessage } from "../../services/api";
+
 import { styles } from "./ActivityForm.styles";
 
 // Tempo máximo para obter a localização atual.
@@ -44,15 +47,22 @@ function withTimeout<T>(
   promise: Promise<T>,
   milliseconds: number
 ): Promise<T> {
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  let timeoutId:
+    | ReturnType<typeof setTimeout>
+    | undefined;
 
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => {
-      reject(new LocationTimeoutError());
-    }, milliseconds);
-  });
+  const timeoutPromise = new Promise<never>(
+    (_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new LocationTimeoutError());
+      }, milliseconds);
+    }
+  );
 
-  return Promise.race([promise, timeoutPromise]).finally(() => {
+  return Promise.race([
+    promise,
+    timeoutPromise,
+  ]).finally(() => {
     if (timeoutId !== undefined) {
       clearTimeout(timeoutId);
     }
@@ -63,20 +73,37 @@ export default function ActivityForm() {
   const { addActivity } = useActivities();
 
   const [activity, setActivity] = useState("");
+  const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
 
-  const [date, setDate] = useState<Date | null>(null);
-  const [time, setTime] = useState<Date | null>(null);
+  const [date, setDate] = useState<Date | null>(
+    null
+  );
 
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [time, setTime] = useState<Date | null>(
+    null
+  );
 
-  const [loadingLocation, setLoadingLocation] = useState(false);
+  const [showDatePicker, setShowDatePicker] =
+    useState(false);
 
-  // Identifica a solicitação de localização mais recente.
+  const [showTimePicker, setShowTimePicker] =
+    useState(false);
+
+  const [loadingLocation, setLoadingLocation] =
+    useState(false);
+
+  const [saving, setSaving] = useState(false);
+
+  // Evita múltiplas requisições de criação
+  // mesmo antes de o estado saving atualizar.
+  const savingRef = useRef(false);
+
+  // Identifica a solicitação de GPS mais recente.
   const requestId = useRef(0);
 
-  // Evita atualizar o estado após desmontar o componente.
+  // Invalida solicitações de localização pendentes
+  // quando o componente é desmontado.
   useEffect(() => {
     return () => {
       requestId.current += 1;
@@ -84,11 +111,14 @@ export default function ActivityForm() {
   }, []);
 
   function resetForm() {
-    // Invalida resultados de solicitações anteriores.
+    // Impede que uma localização solicitada
+    // anteriormente altere o formulário limpo.
     requestId.current += 1;
 
     setActivity("");
+    setDescription("");
     setLocation("");
+
     setDate(null);
     setTime(null);
 
@@ -120,7 +150,7 @@ export default function ActivityForm() {
 
   function handleLocationTextChange(value: string) {
     // A digitação manual tem prioridade sobre
-    // uma solicitação de GPS que ainda esteja em andamento.
+    // uma solicitação de GPS ainda em andamento.
     requestId.current += 1;
 
     setLoadingLocation(false);
@@ -128,17 +158,28 @@ export default function ActivityForm() {
   }
 
   async function handleGetLocation() {
-    if (loadingLocation) return;
+    if (
+      loadingLocation ||
+      savingRef.current
+    ) {
+      return;
+    }
 
     const currentRequest = ++requestId.current;
 
     setLoadingLocation(true);
 
     try {
-      // 1. Verifica se os serviços de localização estão ativos.
-      const enabled = await Location.hasServicesEnabledAsync();
+      // 1. Verifica se os serviços de
+      // localização estão ativados.
+      const enabled =
+        await Location.hasServicesEnabledAsync();
 
-      if (currentRequest !== requestId.current) return;
+      if (
+        currentRequest !== requestId.current
+      ) {
+        return;
+      }
 
       if (!enabled) {
         Alert.alert(
@@ -148,11 +189,15 @@ export default function ActivityForm() {
         return;
       }
 
-      // 2. Solicita permissão de localização em primeiro plano.
+      // 2. Solicita permissão em primeiro plano.
       const permission =
         await Location.requestForegroundPermissionsAsync();
 
-      if (currentRequest !== requestId.current) return;
+      if (
+        currentRequest !== requestId.current
+      ) {
+        return;
+      }
 
       if (!permission.granted) {
         Alert.alert(
@@ -191,15 +236,22 @@ export default function ActivityForm() {
           LOCATION_TIMEOUT_MS
         );
       } catch (currentPositionError) {
-        if (currentRequest !== requestId.current) return;
+        if (
+          currentRequest !== requestId.current
+        ) {
+          return;
+        }
 
         console.warn(
           "Falha ao obter posição atual:",
           currentPositionError
         );
 
-        // 4. Tenta recuperar a última posição conhecida.
-        let lastKnownPosition: Location.LocationObject | null = null;
+        // 4. Tenta recuperar a última
+        // posição conhecida.
+        let lastKnownPosition:
+          | Location.LocationObject
+          | null = null;
 
         try {
           lastKnownPosition = await withTimeout(
@@ -215,25 +267,36 @@ export default function ActivityForm() {
           );
         }
 
-        if (currentRequest !== requestId.current) return;
+        if (
+          currentRequest !== requestId.current
+        ) {
+          return;
+        }
 
-        // Verifica novamente a idade da posição recuperada.
+        // Verifica se a posição anterior
+        // ainda está dentro do prazo permitido.
+        const now = Date.now();
+
         const isRecent =
           lastKnownPosition !== null &&
-          lastKnownPosition.timestamp <= Date.now() &&
-          Date.now() - lastKnownPosition.timestamp <=
+          lastKnownPosition.timestamp <= now &&
+          now - lastKnownPosition.timestamp <=
             LAST_LOCATION_MAX_AGE_MS;
 
-        if (!lastKnownPosition || !isRecent) {
+        if (
+          !lastKnownPosition ||
+          !isRecent
+        ) {
           const timedOut =
-            currentPositionError instanceof LocationTimeoutError;
+            currentPositionError instanceof
+            LocationTimeoutError;
 
           Alert.alert(
             timedOut
               ? "Tempo de espera excedido"
               : "Localização indisponível",
             timedOut
-              ? "O celular demorou mais de 10 segundos para obter sua posição e não encontramos uma localização recente. Tente novamente em um local com melhor sinal ou informe o endereço manualmente."
+              ? "O celular demorou mais de 10 segundos para obter sua posição e não encontramos uma localização recente. Tente novamente ou informe o endereço manualmente."
               : "Não foi possível determinar sua posição atual nem recuperar uma localização recente. Verifique o sinal e tente novamente ou informe o local manualmente."
           );
 
@@ -244,17 +307,24 @@ export default function ActivityForm() {
         usedLastKnownPosition = true;
       }
 
-      if (currentRequest !== requestId.current) return;
+      if (
+        currentRequest !== requestId.current
+      ) {
+        return;
+      }
 
-      const { latitude, longitude } = position.coords;
+      const {
+        latitude,
+        longitude,
+      } = position.coords;
 
-      // 5. Prepara as coordenadas como fallback.
+      // 5. Utiliza coordenadas como fallback.
       let formattedLocation =
         `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
 
       let addressFound = false;
 
-      // 6. Tenta converter as coordenadas em endereço.
+      // 6. Tenta converter coordenadas em endereço.
       try {
         const addresses = await withTimeout(
           Location.reverseGeocodeAsync({
@@ -264,7 +334,11 @@ export default function ActivityForm() {
           GEOCODING_TIMEOUT_MS
         );
 
-        if (currentRequest !== requestId.current) return;
+        if (
+          currentRequest !== requestId.current
+        ) {
+          return;
+        }
 
         const address = addresses[0];
 
@@ -295,17 +369,23 @@ export default function ActivityForm() {
         );
       }
 
-      if (currentRequest !== requestId.current) return;
+      if (
+        currentRequest !== requestId.current
+      ) {
+        return;
+      }
 
       // 7. Preenche o campo Local.
       setLocation(formattedLocation);
 
-      // 8. Informa quando uma posição anterior foi utilizada.
+      // 8. Informa se foi necessário usar
+      // uma localização anterior.
       if (usedLastKnownPosition) {
         const secondsAgo = Math.max(
           0,
           Math.round(
-            (Date.now() - position.timestamp) / 1000
+            (Date.now() - position.timestamp) /
+              1000
           )
         );
 
@@ -319,8 +399,12 @@ export default function ActivityForm() {
           "Sua posição foi obtida, mas não foi possível identificar o endereço. As coordenadas foram preenchidas no campo Local."
         );
       }
-    } catch (error) {
-      if (currentRequest !== requestId.current) return;
+    } catch (error: unknown) {
+      if (
+        currentRequest !== requestId.current
+      ) {
+        return;
+      }
 
       console.error(
         "Erro inesperado ao obter localização:",
@@ -332,13 +416,20 @@ export default function ActivityForm() {
         "Ocorreu um problema ao acessar os serviços de localização. Verifique as permissões, tente novamente ou informe o local manualmente."
       );
     } finally {
-      if (currentRequest === requestId.current) {
+      if (
+        currentRequest === requestId.current
+      ) {
         setLoadingLocation(false);
       }
     }
   }
 
-  function handleCreate() {
+  // Envia a atividade ao backend.
+  async function handleCreate() {
+    if (savingRef.current) {
+      return;
+    }
+
     if (loadingLocation) {
       Alert.alert(
         "Aguarde",
@@ -347,7 +438,11 @@ export default function ActivityForm() {
       return;
     }
 
-    if (!activity.trim()) {
+    const title = activity.trim();
+    const trimmedDescription = description.trim();
+    const trimmedLocation = location.trim();
+
+    if (!title) {
       Alert.alert(
         "Campo obrigatório",
         "Informe o nome da atividade."
@@ -371,7 +466,18 @@ export default function ActivityForm() {
       return;
     }
 
-    if (!location.trim()) {
+    if (
+      Number.isNaN(date.getTime()) ||
+      Number.isNaN(time.getTime())
+    ) {
+      Alert.alert(
+        "Data ou horário inválido",
+        "Selecione uma data e um horário válidos."
+      );
+      return;
+    }
+
+    if (!trimmedLocation) {
       Alert.alert(
         "Campo obrigatório",
         "Informe o local da atividade ou utilize sua localização atual."
@@ -379,198 +485,331 @@ export default function ActivityForm() {
       return;
     }
 
-    addActivity({
-      title: activity.trim(),
-      date,
-      time,
-      location: location.trim(),
-    });
+    if (trimmedLocation.length > 255) {
+      Alert.alert(
+        "Local muito longo",
+        "O local deve ter no máximo 255 caracteres."
+      );
+      return;
+    }
 
-    Alert.alert(
-      "Sucesso",
-      "Atividade criada com sucesso."
-    );
+    savingRef.current = true;
+    setSaving(true);
 
-    resetForm();
+    try {
+      // Aguarda o servidor confirmar a criação.
+      await addActivity({
+        title,
+        description: trimmedDescription,
+        date,
+        time,
+        location: trimmedLocation,
+      });
+
+      // Limpa somente após salvar com sucesso.
+      resetForm();
+
+      Alert.alert(
+        "Sucesso",
+        "Atividade criada com sucesso."
+      );
+    } catch (error: unknown) {
+      console.error(
+        "Erro ao criar atividade:",
+        error
+      );
+
+      Alert.alert(
+        "Erro ao criar atividade",
+        getApiErrorMessage(error)
+      );
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   }
 
   function handleCancel() {
+    if (savingRef.current) {
+      return;
+    }
+
     resetForm();
   }
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={
+        Platform.OS === "ios"
+          ? "padding"
+          : undefined
+      }
       style={styles.container}
     >
-      <View style={styles.form}>
-        <Text style={styles.title}>Nova atividade</Text>
+      <ScrollView
+        contentContainerStyle={{
+          flexGrow: 1,
+        }}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.form}>
+          <Text style={styles.title}>
+            Nova atividade
+          </Text>
 
-        {/* Atividade */}
-        <View style={styles.field}>
-          <Text style={styles.label}>Atividade</Text>
-
-          <TextInput
-            style={styles.input}
-            placeholder="Ex.: Vôlei"
-            value={activity}
-            onChangeText={setActivity}
-          />
-        </View>
-
-        {/* Data */}
-        <View style={styles.field}>
-          <Text style={styles.label}>Data</Text>
-
-          <Pressable
-            style={({ pressed }) => [
-              styles.selector,
-              pressed && styles.selectorPressed,
-            ]}
-            onPress={() => setShowDatePicker(true)}
-          >
-            <Text
-              style={
-                date
-                  ? styles.selectorText
-                  : styles.placeholderText
-              }
-            >
-              {date
-                ? formatDate(date)
-                : "Selecione uma data"}
+          {/* Atividade */}
+          <View style={styles.field}>
+            <Text style={styles.label}>
+              Atividade
             </Text>
 
-            <Text style={styles.selectorIcon}>▾</Text>
-          </Pressable>
-
-          {showDatePicker && (
-            <DateTimePicker
-              value={date ?? new Date()}
-              mode="date"
-              display="default"
-              onValueChange={(_, selectedDate) => {
-                if (selectedDate) {
-                  handleDateChange(selectedDate);
-                }
-              }}
-              onDismiss={() => {
-                setShowDatePicker(false);
-              }}
+            <TextInput
+              style={styles.input}
+              placeholder="Ex.: Vôlei"
+              value={activity}
+              onChangeText={setActivity}
+              maxLength={120}
+              editable={!saving}
             />
-          )}
-        </View>
+          </View>
 
-        {/* Horário */}
-        <View style={styles.field}>
-          <Text style={styles.label}>Horário</Text>
-
-          <Pressable
-            style={({ pressed }) => [
-              styles.selector,
-              pressed && styles.selectorPressed,
-            ]}
-            onPress={() => setShowTimePicker(true)}
-          >
-            <Text
-              style={
-                time
-                  ? styles.selectorText
-                  : styles.placeholderText
-              }
-            >
-              {time
-                ? formatTime(time)
-                : "Selecione um horário"}
+          {/* Descrição */}
+          <View style={styles.field}>
+            <Text style={styles.label}>
+              Descrição (opcional)
             </Text>
 
-            <Text style={styles.selectorIcon}>▾</Text>
-          </Pressable>
-
-          {showTimePicker && (
-            <DateTimePicker
-              value={time ?? new Date()}
-              mode="time"
-              display="default"
-              is24Hour={true}
-              onValueChange={(_, selectedTime) => {
-                if (selectedTime) {
-                  handleTimeChange(selectedTime);
-                }
-              }}
-              onDismiss={() => {
-                setShowTimePicker(false);
-              }}
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  minHeight: 90,
+                  paddingTop: 12,
+                  textAlignVertical: "top",
+                },
+              ]}
+              placeholder="Descreva sua atividade"
+              value={description}
+              onChangeText={setDescription}
+              multiline
+              numberOfLines={3}
+              maxLength={1000}
+              editable={!saving}
             />
-          )}
-        </View>
+          </View>
 
-        {/* Local */}
-        <View style={styles.field}>
-          <Text style={styles.label}>Local</Text>
+          {/* Data */}
+          <View style={styles.field}>
+            <Text style={styles.label}>
+              Data
+            </Text>
 
-          <TextInput
-            style={styles.input}
-            placeholder="Digite o local ou use sua localização"
-            value={location}
-            onChangeText={handleLocationTextChange}
-            editable={true}
-          />
+            <Pressable
+              style={({ pressed }) => [
+                styles.selector,
+                pressed && styles.selectorPressed,
+                saving && { opacity: 0.6 },
+              ]}
+              onPress={() =>
+                setShowDatePicker(true)
+              }
+              disabled={saving}
+            >
+              <Text
+                style={
+                  date
+                    ? styles.selectorText
+                    : styles.placeholderText
+                }
+              >
+                {date
+                  ? formatDate(date)
+                  : "Selecione uma data"}
+              </Text>
 
-          <Pressable
-            style={({ pressed }) => [
-              styles.locationButton,
-              pressed && styles.buttonPressed,
-              loadingLocation &&
-                styles.locationButtonDisabled,
-            ]}
-            onPress={handleGetLocation}
-            disabled={loadingLocation}
-            accessibilityRole="button"
-            accessibilityLabel="Usar minha localização atual"
-          >
-            {loadingLocation && (
-              <ActivityIndicator
-                size="small"
-                color="#2563EB"
+              <Text style={styles.selectorIcon}>
+                ▾
+              </Text>
+            </Pressable>
+
+            {showDatePicker && (
+              <DateTimePicker
+                value={date ?? new Date()}
+                mode="date"
+                display="default"
+                onValueChange={(
+                  _,
+                  selectedDate
+                ) => {
+                  if (
+                    selectedDate &&
+                    !savingRef.current
+                  ) {
+                    handleDateChange(selectedDate);
+                  }
+                }}
+                onDismiss={() => {
+                  setShowDatePicker(false);
+                }}
               />
             )}
+          </View>
 
-            <Text style={styles.locationButtonText}>
-              {loadingLocation
-                ? "Obtendo localização..."
-                : "Usar minha localização"}
+          {/* Horário */}
+          <View style={styles.field}>
+            <Text style={styles.label}>
+              Horário
             </Text>
-          </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.selector,
+                pressed && styles.selectorPressed,
+                saving && { opacity: 0.6 },
+              ]}
+              onPress={() =>
+                setShowTimePicker(true)
+              }
+              disabled={saving}
+            >
+              <Text
+                style={
+                  time
+                    ? styles.selectorText
+                    : styles.placeholderText
+                }
+              >
+                {time
+                  ? formatTime(time)
+                  : "Selecione um horário"}
+              </Text>
+
+              <Text style={styles.selectorIcon}>
+                ▾
+              </Text>
+            </Pressable>
+
+            {showTimePicker && (
+              <DateTimePicker
+                value={time ?? new Date()}
+                mode="time"
+                display="default"
+                is24Hour
+                onValueChange={(
+                  _,
+                  selectedTime
+                ) => {
+                  if (
+                    selectedTime &&
+                    !savingRef.current
+                  ) {
+                    handleTimeChange(selectedTime);
+                  }
+                }}
+                onDismiss={() => {
+                  setShowTimePicker(false);
+                }}
+              />
+            )}
+          </View>
+
+          {/* Local */}
+          <View style={styles.field}>
+            <Text style={styles.label}>
+              Local
+            </Text>
+
+            <TextInput
+              style={styles.input}
+              placeholder="Digite o local ou use sua localização"
+              value={location}
+              onChangeText={handleLocationTextChange}
+              maxLength={255}
+              editable={!saving}
+            />
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.locationButton,
+                pressed && styles.buttonPressed,
+                (loadingLocation || saving) &&
+                  styles.locationButtonDisabled,
+              ]}
+              onPress={() => {
+                void handleGetLocation();
+              }}
+              disabled={loadingLocation || saving}
+              accessibilityRole="button"
+              accessibilityLabel="Usar minha localização atual"
+            >
+              {loadingLocation && (
+                <ActivityIndicator
+                  size="small"
+                  color="#2563EB"
+                />
+              )}
+
+              <Text
+                style={styles.locationButtonText}
+              >
+                {loadingLocation
+                  ? "Obtendo localização..."
+                  : "Usar minha localização"}
+              </Text>
+            </Pressable>
+          </View>
+
+          {/* Botões */}
+          <View style={styles.actions}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.cancelButton,
+                pressed && styles.buttonPressed,
+                saving && { opacity: 0.6 },
+              ]}
+              onPress={handleCancel}
+              disabled={saving}
+              accessibilityRole="button"
+            >
+              <Text
+                style={styles.cancelButtonText}
+              >
+                Cancelar
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.createButton,
+                pressed && styles.buttonPressed,
+                (saving || loadingLocation) && {
+                  opacity: 0.6,
+                },
+              ]}
+              onPress={() => {
+                void handleCreate();
+              }}
+              disabled={saving || loadingLocation}
+              accessibilityRole="button"
+            >
+              {saving && (
+                <ActivityIndicator
+                  size="small"
+                  color="#FFFFFF"
+                />
+              )}
+
+              <Text
+                style={styles.createButtonText}
+              >
+                {saving
+                  ? "Salvando..."
+                  : "Criar"}
+              </Text>
+            </Pressable>
+          </View>
         </View>
-
-        {/* Botões */}
-        <View style={styles.actions}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.cancelButton,
-              pressed && styles.buttonPressed,
-            ]}
-            onPress={handleCancel}
-          >
-            <Text style={styles.cancelButtonText}>
-              Cancelar
-            </Text>
-          </Pressable>
-
-          <Pressable
-            style={({ pressed }) => [
-              styles.createButton,
-              pressed && styles.buttonPressed,
-            ]}
-            onPress={handleCreate}
-          >
-            <Text style={styles.createButtonText}>
-              Criar
-            </Text>
-          </Pressable>
-        </View>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }

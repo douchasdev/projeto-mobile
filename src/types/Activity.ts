@@ -1,7 +1,9 @@
+
 export type Activity = {
   id: string;
   ownerId: string;
   title: string;
+  description?: string;
   date: Date;
   time: Date;
   location: string;
@@ -15,5 +17,5 @@ export type NewActivity = Omit<
 
 export type UpdateActivity = Pick<
   Activity,
-  "title" | "date" | "time" | "location"
+  "title" | "description" | "date" | "time" | "location"
 >;
