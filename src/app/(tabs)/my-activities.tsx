@@ -8,15 +8,15 @@ import {
 
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import ActivityCard from "../components/ActivityCard/ActivityCard";
+import ActivityCard from "../../components/ActivityCard/ActivityCard";
 
-import EditActivityModal from "../components/EditActivityModal/EditActivityModal";
+import EditActivityModal from "../../components/EditActivityModal/EditActivityModal";
 
-import { useActivities } from "../contexts/ActivitiesContext";
+import { useActivities } from "../../contexts/ActivitiesContext";
 
-import { styles } from "../styles/my-activities.styles";
+import { styles } from "../../styles/my-activities.styles";
 
-import { Activity } from "../types/Activity";
+import { Activity } from "../../types/Activity";
 
 export default function MyActivitiesScreen() {
   const {

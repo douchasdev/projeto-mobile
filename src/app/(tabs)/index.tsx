@@ -1,3 +1,4 @@
+
 import {
   FlatList,
   Text,
@@ -6,11 +7,11 @@ import {
 
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import ActivityCard from "../components/ActivityCard/ActivityCard";
+import ActivityCard from "../../components/ActivityCard/ActivityCard";
+import ApiConnectionTest from "../../components/ApiConnectionTest";
 
-import { useActivities } from "../contexts/ActivitiesContext";
-
-import { styles } from "../styles/index.styles";
+import { useActivities } from "../../contexts/ActivitiesContext";
+import { styles } from "../../styles/index.styles";
 
 export default function HomeScreen() {
   const {
@@ -47,6 +48,9 @@ export default function HomeScreen() {
               Atividades de todos os usuários,
               inclusive as suas.
             </Text>
+
+            {/* Teste temporário da API */}
+            <ApiConnectionTest />
           </View>
         }
         ListEmptyComponent={
