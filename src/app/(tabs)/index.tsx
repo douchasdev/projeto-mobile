@@ -1,5 +1,6 @@
 
 import { useCallback } from "react";
+
 import { useFocusEffect } from "expo-router";
 
 import {
@@ -13,10 +14,16 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import ActivityCard from "../../components/ActivityCard/ActivityCard";
+
 import { useActivities } from "../../contexts/ActivitiesContext";
-import { styles } from "../../styles/index.styles";
+import { useTheme } from "../../contexts/ThemeContext";
+
+import { createHomeStyles } from "../../styles/index.styles";
 
 export default function HomeScreen() {
+  const { colors } = useTheme();
+  const styles = createHomeStyles(colors);
+
   const {
     activities,
     showCompleted,
@@ -29,7 +36,7 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       void refreshActivities().catch(() => {
-        // O erro fica disponível no contexto.
+        // O contexto registra o erro.
       });
     }, [refreshActivities])
   );
@@ -41,7 +48,9 @@ export default function HomeScreen() {
       );
 
   function handleRefresh() {
-    void refreshActivities().catch(() => {});
+    void refreshActivities().catch(() => {
+      // O erro será exibido na tela.
+    });
   }
 
   return (
@@ -54,6 +63,7 @@ export default function HomeScreen() {
         )}
         refreshing={refreshing}
         onRefresh={handleRefresh}
+        progressViewOffset={20}
         contentContainerStyle={[
           styles.listContent,
           visibleActivities.length === 0 &&
@@ -71,28 +81,17 @@ export default function HomeScreen() {
             </Text>
 
             {error && (
-              <View
-                style={{
-                  marginTop: 16,
-                  padding: 14,
-                  backgroundColor: "#FEF3F2",
-                  borderRadius: 8,
-                }}
-              >
-                <Text style={{ color: "#B42318" }}>
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>
                   {error}
                 </Text>
 
                 <Pressable
+                  style={styles.retryButton}
                   onPress={handleRefresh}
-                  style={{ marginTop: 10 }}
+                  accessibilityRole="button"
                 >
-                  <Text
-                    style={{
-                      color: "#2563EB",
-                      fontWeight: "600",
-                    }}
-                  >
+                  <Text style={styles.retryText}>
                     Tentar novamente
                   </Text>
                 </Pressable>
@@ -104,7 +103,7 @@ export default function HomeScreen() {
           loading ? (
             <ActivityIndicator
               size="large"
-              color="#2563EB"
+              color={colors.primary}
             />
           ) : (
             <View style={styles.emptyContainer}>

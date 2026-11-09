@@ -1,5 +1,10 @@
 
-import { useCallback, useRef, useState } from "react";
+import {
+  useCallback,
+  useRef,
+  useState,
+} from "react";
+
 import { useFocusEffect } from "expo-router";
 
 import {
@@ -14,15 +19,23 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import ActivityCard from "../../components/ActivityCard/ActivityCard";
+
 import EditActivityModal from "../../components/EditActivityModal/EditActivityModal";
 
 import { useActivities } from "../../contexts/ActivitiesContext";
+import { useTheme } from "../../contexts/ThemeContext";
+
 import { getApiErrorMessage } from "../../services/api";
-import { styles } from "../../styles/my-activities.styles";
+
+import { createMyActivitiesStyles } from "../../styles/my-activities.styles";
 
 import type { Activity } from "../../types/Activity";
 
 export default function MyActivitiesScreen() {
+  const { colors } = useTheme();
+
+  const styles = createMyActivitiesStyles(colors);
+
   const {
     myActivities,
     showCompleted,
@@ -34,8 +47,10 @@ export default function MyActivitiesScreen() {
     deleteActivity,
   } = useActivities();
 
-  const [editingActivity, setEditingActivity] =
-    useState<Activity | null>(null);
+  const [
+    editingActivity,
+    setEditingActivity,
+  ] = useState<Activity | null>(null);
 
   const [processingId, setProcessingId] =
     useState<string | null>(null);
@@ -44,7 +59,9 @@ export default function MyActivitiesScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      void refreshActivities().catch(() => {});
+      void refreshActivities().catch(() => {
+        // O contexto registra o erro.
+      });
     }, [refreshActivities])
   );
 
@@ -55,11 +72,15 @@ export default function MyActivitiesScreen() {
       );
 
   function handleRefresh() {
-    void refreshActivities().catch(() => {});
+    void refreshActivities().catch(() => {
+      // O erro será exibido na interface.
+    });
   }
 
   async function handleToggle(id: string) {
-    if (processingRef.current) return;
+    if (processingRef.current) {
+      return;
+    }
 
     processingRef.current = true;
     setProcessingId(id);
@@ -78,7 +99,9 @@ export default function MyActivitiesScreen() {
   }
 
   async function handleDelete(id: string) {
-    if (processingRef.current) return;
+    if (processingRef.current) {
+      return;
+    }
 
     processingRef.current = true;
     setProcessingId(id);
@@ -104,7 +127,9 @@ export default function MyActivitiesScreen() {
   }
 
   function confirmDelete(activity: Activity) {
-    if (processingRef.current) return;
+    if (processingRef.current) {
+      return;
+    }
 
     Alert.alert(
       "Excluir atividade",
@@ -133,7 +158,7 @@ export default function MyActivitiesScreen() {
         refreshing={refreshing}
         onRefresh={handleRefresh}
         renderItem={({ item }) => (
-          <View style={{ marginBottom: 16 }}>
+          <View style={styles.activityContainer}>
             <ActivityCard
               activity={item}
               onToggleCompleted={() => {
@@ -151,30 +176,20 @@ export default function MyActivitiesScreen() {
               disabled={processingId !== null}
               accessibilityRole="button"
               accessibilityLabel={`Excluir ${item.title}`}
-              style={{
-                alignSelf: "flex-end",
-                marginTop: 8,
-                paddingVertical: 10,
-                paddingHorizontal: 14,
-                backgroundColor: "#FFFFFF",
-                borderColor: "#D92D20",
-                borderWidth: 1,
-                borderRadius: 8,
-                opacity:
-                  processingId !== null ? 0.6 : 1,
-              }}
+              style={[
+                styles.deleteButton,
+                processingId !== null &&
+                  styles.deleteButtonDisabled,
+              ]}
             >
               {processingId === item.id ? (
                 <ActivityIndicator
                   size="small"
-                  color="#D92D20"
+                  color={colors.danger}
                 />
               ) : (
                 <Text
-                  style={{
-                    color: "#D92D20",
-                    fontWeight: "600",
-                  }}
+                  style={styles.deleteButtonText}
                 >
                   Excluir atividade
                 </Text>
@@ -199,28 +214,17 @@ export default function MyActivitiesScreen() {
             </Text>
 
             {error && (
-              <View
-                style={{
-                  marginTop: 16,
-                  padding: 14,
-                  backgroundColor: "#FEF3F2",
-                  borderRadius: 8,
-                }}
-              >
-                <Text style={{ color: "#B42318" }}>
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>
                   {error}
                 </Text>
 
                 <Pressable
                   onPress={handleRefresh}
-                  style={{ marginTop: 10 }}
+                  style={styles.retryButton}
+                  accessibilityRole="button"
                 >
-                  <Text
-                    style={{
-                      color: "#2563EB",
-                      fontWeight: "600",
-                    }}
-                  >
+                  <Text style={styles.retryText}>
                     Tentar novamente
                   </Text>
                 </Pressable>
@@ -232,7 +236,7 @@ export default function MyActivitiesScreen() {
           loading ? (
             <ActivityIndicator
               size="large"
-              color="#2563EB"
+              color={colors.primary}
             />
           ) : (
             <View style={styles.emptyContainer}>

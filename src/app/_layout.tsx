@@ -1,5 +1,12 @@
 
-import { Stack } from "expo-router";
+import {
+  Stack,
+  ThemeProvider as NavigationThemeProvider,
+  DarkTheme,
+  DefaultTheme,
+} from "expo-router";
+
+import { StatusBar } from "expo-status-bar";
 
 import {
   ActivityIndicator,
@@ -13,6 +20,11 @@ import {
   useAuth,
 } from "../contexts/AuthContext";
 
+import {
+  ThemeProvider,
+  useTheme,
+} from "../contexts/ThemeContext";
+
 function RootNavigation() {
   const {
     status,
@@ -20,94 +32,142 @@ function RootNavigation() {
     retrySession,
   } = useAuth();
 
-  if (status === "loading") {
-    return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: "center",
-          alignItems: "center",
-          gap: 12,
-        }}
-      >
-        <ActivityIndicator
-          size="large"
-          color="#2563EB"
-        />
+  const {
+    colors,
+    isDark,
+    ready,
+  } = useTheme();
 
-        <Text>Verificando sua sessão...</Text>
-      </View>
-    );
-  }
+  const baseTheme = isDark
+    ? DarkTheme
+    : DefaultTheme;
 
-  if (status === "error") {
-    return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: "center",
-          alignItems: "center",
-          padding: 24,
-          gap: 16,
-        }}
-      >
-        <Text
-          style={{
-            fontSize: 20,
-            fontWeight: "600",
-            textAlign: "center",
-          }}
-        >
-          Não foi possível verificar sua sessão
-        </Text>
+  const navigationTheme = {
+    ...baseTheme,
+    colors: {
+      ...baseTheme.colors,
+      primary: colors.primary,
+      background: colors.background,
+      card: colors.surface,
+      text: colors.text,
+      border: colors.border,
+    },
+  };
 
-        <Text
-          style={{
-            color: "#667085",
-            textAlign: "center",
-          }}
-        >
-          {error}
-        </Text>
-
-        <Pressable
-          onPress={() => void retrySession()}
-          style={{
-            backgroundColor: "#2563EB",
-            padding: 14,
-            borderRadius: 8,
-          }}
-        >
-          <Text style={{ color: "#FFFFFF" }}>
-            Tentar novamente
-          </Text>
-        </Pressable>
-      </View>
-    );
-  }
+  const loading =
+    !ready || status === "loading";
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Protected
-        guard={status === "unauthenticated"}
-      >
-        <Stack.Screen name="login" />
-        <Stack.Screen name="register" />
-      </Stack.Protected>
+    <NavigationThemeProvider
+      value={navigationTheme}
+    >
+      <StatusBar
+        style={isDark ? "light" : "dark"}
+      />
 
-      <Stack.Protected
-        guard={status === "authenticated"}
-      >
-        <Stack.Screen name="(tabs)" />
-      </Stack.Protected>
-    </Stack>
+      {loading ? (
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: colors.background,
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 12,
+          }}
+        >
+          <ActivityIndicator
+            size="large"
+            color={colors.primary}
+          />
+
+          <Text style={{ color: colors.text }}>
+            Carregando aplicativo...
+          </Text>
+        </View>
+      ) : status === "error" ? (
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: colors.background,
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+            gap: 16,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 20,
+              fontWeight: "600",
+              color: colors.text,
+              textAlign: "center",
+            }}
+          >
+            Não foi possível verificar sua sessão
+          </Text>
+
+          <Text
+            style={{
+              color: colors.textSecondary,
+              textAlign: "center",
+            }}
+          >
+            {error}
+          </Text>
+
+          <Pressable
+            onPress={() => {
+              void retrySession();
+            }}
+            style={{
+              backgroundColor: colors.primary,
+              padding: 14,
+              borderRadius: 8,
+            }}
+          >
+            <Text
+              style={{
+                color: colors.onPrimary,
+                fontWeight: "600",
+              }}
+            >
+              Tentar novamente
+            </Text>
+          </Pressable>
+        </View>
+      ) : (
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: {
+              backgroundColor: colors.background,
+            },
+          }}
+        >
+          <Stack.Protected
+            guard={status === "unauthenticated"}
+          >
+            <Stack.Screen name="login" />
+            <Stack.Screen name="register" />
+          </Stack.Protected>
+
+          <Stack.Protected
+            guard={status === "authenticated"}
+          >
+            <Stack.Screen name="(tabs)" />
+          </Stack.Protected>
+        </Stack>
+      )}
+    </NavigationThemeProvider>
   );
 }
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <RootNavigation />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <RootNavigation />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

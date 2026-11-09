@@ -10,6 +10,8 @@ import {
 
 import type { ReactNode } from "react";
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 import type {
   Activity,
   NewActivity,
@@ -34,6 +36,11 @@ import {
 
 import { getApiErrorMessage } from "../services/api";
 
+// Prefixo utilizado para armazenar a preferência
+// separadamente para cada usuário.
+const SHOW_COMPLETED_STORAGE_KEY =
+  "@projeto-mobile:showCompleted";
+
 type ActivitiesContextData = {
   currentUserId: string;
 
@@ -41,6 +48,7 @@ type ActivitiesContextData = {
   myActivities: Activity[];
 
   showCompleted: boolean;
+  preferencesReady: boolean;
   setShowCompleted: (value: boolean) => void;
 
   loading: boolean;
@@ -71,11 +79,12 @@ type ActivitiesProviderProps = {
   children: ReactNode;
 };
 
-const ActivitiesContext = createContext<
-  ActivitiesContextData | undefined
->(undefined);
+const ActivitiesContext =
+  createContext<ActivitiesContextData | undefined>(
+    undefined
+  );
 
-// Insere ou substitui uma atividade,
+// Insere ou substitui uma atividade na lista,
 // mantendo a ordenação por data e horário.
 function upsertActivity(
   list: Activity[],
@@ -97,33 +106,33 @@ export function ActivitiesProvider({
 }: ActivitiesProviderProps) {
   const { user } = useAuth();
 
+  // Identificador real do usuário autenticado.
   const currentUserId = user?.id ?? "";
 
-  const [activities, setActivities] = useState<
-    Activity[]
-  >([]);
+  // Atividades recebidas do MySQL via API.
+  const [activities, setActivities] =
+    useState<Activity[]>([]);
 
-  const [myActivities, setMyActivities] = useState<
-    Activity[]
-  >([]);
+  const [myActivities, setMyActivities] =
+    useState<Activity[]>([]);
 
-  const [showCompleted, setShowCompleted] =
+  // Preferência local armazenada no AsyncStorage.
+  const [showCompleted, setShowCompletedState] =
     useState(true);
 
+  const [preferencesReady, setPreferencesReady] =
+    useState(false);
+
+  // Estados das requisições HTTP.
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] =
     useState(false);
 
-  const [error, setError] = useState<
-    string | null
-  >(null);
+  const [error, setError] =
+    useState<string | null>(null);
 
-  // Evita atualizar o estado depois do
-  // desmonte do provider.
+  // Controle do ciclo de vida.
   const mountedRef = useRef(false);
-
-  // Diferencia a primeira carga das
-  // atualizações posteriores.
   const loadedOnceRef = useRef(false);
 
   // Evita buscas duplicadas em andamento.
@@ -131,13 +140,102 @@ export function ActivitiesProvider({
     Promise<void> | null
   >(null);
 
-  // Impede que uma resposta antiga sobrescreva
-  // uma alteração realizada mais recentemente.
+  // Impede que consultas antigas sobrescrevam
+  // alterações feitas posteriormente.
   const mutationVersionRef = useRef(0);
 
-  // Busca todas as atividades e as do usuário.
-  const refreshActivities =
-    useCallback((): Promise<void> => {
+  // ==================================================
+  // ASYNCSTORAGE — RECUPERAR PREFERÊNCIA
+  // ==================================================
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadPreference() {
+      setPreferencesReady(false);
+
+      // Valor padrão quando ainda não existe
+      // uma preferência armazenada.
+      setShowCompletedState(true);
+
+      if (!currentUserId) {
+        setPreferencesReady(true);
+        return;
+      }
+
+      const storageKey =
+        `${SHOW_COMPLETED_STORAGE_KEY}:${currentUserId}`;
+
+      try {
+        const storedValue =
+          await AsyncStorage.getItem(storageKey);
+
+        if (cancelled) {
+          return;
+        }
+
+        // Se o valor não existir, utiliza true.
+        setShowCompletedState(
+          storedValue !== "false"
+        );
+      } catch (storageError) {
+        console.error(
+          "Erro ao recuperar preferência:",
+          storageError
+        );
+
+        // Mantém o valor padrão caso a leitura falhe.
+      } finally {
+        if (!cancelled) {
+          setPreferencesReady(true);
+        }
+      }
+    }
+
+    void loadPreference();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserId]);
+
+  // ==================================================
+  // ASYNCSTORAGE — SALVAR PREFERÊNCIA
+  // ==================================================
+
+  const setShowCompleted = useCallback(
+    (value: boolean) => {
+      if (!preferencesReady || !currentUserId) {
+        return;
+      }
+
+      // Atualiza imediatamente a interface.
+      setShowCompletedState(value);
+
+      const storageKey =
+        `${SHOW_COMPLETED_STORAGE_KEY}:${currentUserId}`;
+
+      // Persiste a preferência no dispositivo.
+      void AsyncStorage.setItem(
+        storageKey,
+        String(value)
+      ).catch((storageError) => {
+        console.error(
+          "Erro ao salvar preferência:",
+          storageError
+        );
+      });
+    },
+    [currentUserId, preferencesReady]
+  );
+
+  // ==================================================
+  // GET /activities e GET /activities/my
+  // ==================================================
+
+  const refreshActivities = useCallback(
+    (): Promise<void> => {
+      // Reaproveita uma busca que já está em andamento.
       if (inFlightRefreshRef.current) {
         return inFlightRefreshRef.current;
       }
@@ -155,13 +253,14 @@ export function ActivitiesProvider({
         setError(null);
 
         try {
+          // Consulta as duas listas em paralelo.
           const [allFromApi, mineFromApi] =
             await Promise.all([
               getAllActivities(),
               getMyActivities(),
             ]);
 
-          // Desconsidera resultados obsoletos.
+          // Não utiliza respostas obsoletas.
           if (
             !mountedRef.current ||
             startedVersion !==
@@ -177,14 +276,14 @@ export function ActivitiesProvider({
           setMyActivities(
             mineFromApi.map(fromApiActivity)
           );
-        } catch (err: unknown) {
+        } catch (requestError: unknown) {
           if (mountedRef.current) {
             setError(
-              getApiErrorMessage(err)
+              getApiErrorMessage(requestError)
             );
           }
 
-          throw err;
+          throw requestError;
         } finally {
           if (mountedRef.current) {
             loadedOnceRef.current = true;
@@ -210,15 +309,17 @@ export function ActivitiesProvider({
       );
 
       return request;
-    }, []);
+    },
+    []
+  );
 
-  // Carrega as atividades quando o usuário
-  // entra na área autenticada do aplicativo.
+  // Carrega as atividades ao iniciar
+  // a área autenticada do aplicativo.
   useEffect(() => {
     mountedRef.current = true;
 
     void refreshActivities().catch(() => {
-      // A mensagem já foi registrada no estado error.
+      // A mensagem já foi registrada em error.
     });
 
     return () => {
@@ -226,7 +327,10 @@ export function ActivitiesProvider({
     };
   }, [refreshActivities]);
 
+  // ==================================================
   // POST /activities
+  // ==================================================
+
   async function addActivity(
     activity: NewActivity
   ): Promise<void> {
@@ -265,7 +369,10 @@ export function ActivitiesProvider({
     setError(null);
   }
 
+  // ==================================================
   // PATCH /activities/:id
+  // ==================================================
+
   async function updateActivity(
     id: string,
     changes: UpdateActivity
@@ -315,7 +422,10 @@ export function ActivitiesProvider({
     return true;
   }
 
+  // ==================================================
   // PATCH /activities/:id/status
+  // ==================================================
+
   async function toggleActivityCompleted(
     id: string
   ): Promise<void> {
@@ -356,11 +466,14 @@ export function ActivitiesProvider({
     setError(null);
   }
 
+  // ==================================================
   // DELETE /activities/:id
+  // ==================================================
+
   async function deleteActivity(
     id: string
   ): Promise<void> {
-    // O backend verifica novamente o proprietário.
+    // A API verifica se o usuário é o proprietário.
     await deleteActivityRequest(id);
 
     mutationVersionRef.current += 1;
@@ -380,6 +493,10 @@ export function ActivitiesProvider({
     setError(null);
   }
 
+  // ==================================================
+  // DISPONIBILIZAR OS DADOS PARA AS TELAS
+  // ==================================================
+
   return (
     <ActivitiesContext.Provider
       value={{
@@ -389,6 +506,7 @@ export function ActivitiesProvider({
         myActivities,
 
         showCompleted,
+        preferencesReady,
         setShowCompleted,
 
         loading,

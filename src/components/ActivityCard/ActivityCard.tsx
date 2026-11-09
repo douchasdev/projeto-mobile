@@ -1,12 +1,15 @@
+
 import {
   Pressable,
   Text,
   View,
 } from "react-native";
 
-import { Activity } from "../../types/Activity";
+import { useTheme } from "../../contexts/ThemeContext";
 
-import { styles } from "./ActivityCard.styles";
+import type { Activity } from "../../types/Activity";
+
+import { createActivityCardStyles } from "./ActivityCard.styles";
 
 type ActivityCardProps = {
   activity: Activity;
@@ -19,6 +22,10 @@ export default function ActivityCard({
   onToggleCompleted,
   onEdit,
 }: ActivityCardProps) {
+  const { colors } = useTheme();
+
+  const styles = createActivityCardStyles(colors);
+
   const date = activity.date.toLocaleDateString(
     "pt-BR"
   );
@@ -35,8 +42,7 @@ export default function ActivityCard({
     <View
       style={[
         styles.card,
-        activity.completed &&
-          styles.completedCard,
+        activity.completed && styles.completedCard,
       ]}
     >
       {onToggleCompleted && (
@@ -75,6 +81,12 @@ export default function ActivityCard({
         >
           {activity.title}
         </Text>
+
+        {!!activity.description?.trim() && (
+          <Text style={styles.description}>
+            {activity.description}
+          </Text>
+        )}
 
         <Text style={styles.info}>
           {date} • {time}

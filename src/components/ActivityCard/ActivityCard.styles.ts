@@ -1,94 +1,109 @@
+
 import { StyleSheet } from "react-native";
 
-export const styles = StyleSheet.create({
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E4E7EC",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
+import type { AppColors } from "../../theme/colors";
 
-  completedCard: {
-    borderColor: "#D0D5DD",
-  },
+export function createActivityCardStyles(
+  colors: AppColors
+) {
+  return StyleSheet.create({
+    card: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 12,
+      flexDirection: "row",
+      alignItems: "flex-start",
+    },
 
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderWidth: 2,
-    borderColor: "#98A2B3",
-    borderRadius: 6,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 14,
-    marginTop: 2,
-  },
+    completedCard: {
+      borderColor: colors.border,
+    },
 
-  checkboxCompleted: {
-    backgroundColor: "#2563EB",
-    borderColor: "#2563EB",
-  },
+    checkbox: {
+      width: 24,
+      height: 24,
+      borderWidth: 2,
+      borderColor: colors.textSecondary,
+      borderRadius: 6,
+      justifyContent: "center",
+      alignItems: "center",
+      marginRight: 14,
+      marginTop: 2,
+    },
 
-  check: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "700",
-  },
+    checkboxCompleted: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
 
-  content: {
-    flex: 1,
-  },
+    check: {
+      color: colors.onPrimary,
+      fontSize: 16,
+      fontWeight: "700",
+    },
 
-  title: {
-    fontSize: 17,
-    fontWeight: "600",
-    marginBottom: 6,
-  },
+    content: {
+      flex: 1,
+    },
 
-  completedText: {
-    textDecorationLine: "line-through",
-    color: "#98A2B3",
-  },
+    title: {
+      fontSize: 17,
+      fontWeight: "600",
+      marginBottom: 6,
+      color: colors.text,
+    },
 
-  info: {
-    fontSize: 14,
-    color: "#475467",
-  },
+    completedText: {
+      textDecorationLine: "line-through",
+      color: colors.textSecondary,
+    },
 
-  location: {
-    fontSize: 14,
-    color: "#667085",
-    marginTop: 4,
-  },
+    description: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      marginBottom: 8,
+      lineHeight: 20,
+    },
 
-  status: {
-    fontSize: 13,
-    color: "#475467",
-    marginTop: 8,
-  },
+    info: {
+      fontSize: 14,
+      color: colors.textSecondary,
+    },
 
-  editButton: {
-    alignSelf: "flex-start",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#2563EB",
-    backgroundColor: "#EFF6FF",
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    marginTop: 12,
-  },
+    location: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      marginTop: 4,
+    },
 
-  editButtonText: {
-    color: "#2563EB",
-    fontWeight: "600",
-    fontSize: 14,
-  },
+    status: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      marginTop: 8,
+    },
 
-  pressed: {
-    opacity: 0.7,
-  },
-});
+    editButton: {
+      alignSelf: "flex-start",
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.primary,
+      backgroundColor: colors.primarySurface,
+      paddingHorizontal: 14,
+      paddingVertical: 9,
+      marginTop: 12,
+    },
+
+    editButtonText: {
+      color: colors.primary,
+      fontWeight: "600",
+      fontSize: 14,
+    },
+
+    pressed: {
+      opacity: 0.7,
+    },
+  });
+}

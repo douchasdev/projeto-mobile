@@ -1,51 +1,81 @@
-import { StyleSheet } from 'react-native';
 
-export const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
+import { StyleSheet } from "react-native";
 
-  listContent: {
-    paddingHorizontal: 20,
-    paddingTop: 80,
-    paddingBottom: 20,
-  },
+import type { AppColors } from "../theme/colors";
 
-  emptyListContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-  },
+export function createHomeStyles(colors: AppColors) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
 
-  header: {
-    marginBottom: 20,
-  },
+    listContent: {
+      paddingHorizontal: 20,
+      paddingTop: 80,
+      paddingBottom: 20,
+    },
 
-  title: {
-    fontSize: 24,
-    fontWeight: '600',
-  },
+    emptyListContent: {
+      flexGrow: 1,
+      justifyContent: "center",
+    },
 
-  subtitle: {
-    fontSize: 14,
-    color: '#667085',
-    marginTop: 4,
-  },
+    header: {
+      marginBottom: 20,
+    },
 
-  emptyContainer: {
-    alignItems: 'center',
-    paddingHorizontal: 32,
-  },
+    title: {
+      fontSize: 24,
+      fontWeight: "600",
+      color: colors.text,
+    },
 
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 6,
-  },
+    subtitle: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      marginTop: 4,
+    },
 
-  emptyText: {
-    fontSize: 14,
-    color: '#667085',
-    textAlign: 'center',
-  },
-});
+    emptyContainer: {
+      alignItems: "center",
+      paddingHorizontal: 32,
+    },
+
+    emptyTitle: {
+      fontSize: 18,
+      fontWeight: "600",
+      marginBottom: 6,
+      color: colors.text,
+      textAlign: "center",
+    },
+
+    emptyText: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      textAlign: "center",
+    },
+
+    errorBox: {
+      marginTop: 16,
+      padding: 14,
+      backgroundColor: colors.dangerSurface,
+      borderRadius: 8,
+    },
+
+    errorText: {
+      color: colors.danger,
+    },
+
+    retryButton: {
+      marginTop: 10,
+      alignSelf: "flex-start",
+      paddingVertical: 6,
+    },
+
+    retryText: {
+      color: colors.primary,
+      fontWeight: "600",
+    },
+  });
+}

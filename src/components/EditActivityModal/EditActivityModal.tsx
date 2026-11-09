@@ -20,18 +20,19 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Location from "expo-location";
 
 import { useActivities } from "../../contexts/ActivitiesContext";
+import { useTheme } from "../../contexts/ThemeContext";
 import { getApiErrorMessage } from "../../services/api";
 
 import type { Activity } from "../../types/Activity";
 
-import { styles } from "./EditActivityModal.styles";
+import { createEditActivityModalStyles } from "./EditActivityModal.styles";
 
 type Props = {
   activity: Activity;
   onClose: () => void;
 };
 
-// Configurações de localização.
+// Configurações da geolocalização.
 const LOCATION_TIMEOUT_MS = 10000;
 const LAST_LOCATION_MAX_AGE_MS = 60000;
 const FALLBACK_TIMEOUT_MS = 3000;
@@ -44,23 +45,18 @@ class LocationTimeoutError extends Error {
   }
 }
 
-// Limita a espera por uma operação assíncrona.
-// A operação nativa pode continuar em execução.
+// Limita o tempo de espera de uma operação assíncrona.
 function withTimeout<T>(
   promise: Promise<T>,
   milliseconds: number
 ): Promise<T> {
-  let timeoutId:
-    | ReturnType<typeof setTimeout>
-    | undefined;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
-  const timeoutPromise = new Promise<never>(
-    (_, reject) => {
-      timeoutId = setTimeout(() => {
-        reject(new LocationTimeoutError());
-      }, milliseconds);
-    }
-  );
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new LocationTimeoutError());
+    }, milliseconds);
+  });
 
   return Promise.race([
     promise,
@@ -76,12 +72,15 @@ export default function EditActivityModal({
   activity,
   onClose,
 }: Props) {
+  // Dark Mode.
+  const { colors } = useTheme();
+  const styles = createEditActivityModalStyles(colors);
+
+  // Integração com a API.
   const { updateActivity } = useActivities();
 
   // Dados atuais da atividade.
-  const [title, setTitle] = useState(
-    activity.title
-  );
+  const [title, setTitle] = useState(activity.title);
 
   const [description, setDescription] = useState(
     activity.description ?? ""
@@ -91,34 +90,22 @@ export default function EditActivityModal({
     activity.location
   );
 
-  const [date, setDate] = useState(
-    activity.date
-  );
+  const [date, setDate] = useState(activity.date);
+  const [time, setTime] = useState(activity.time);
 
-  const [time, setTime] = useState(
-    activity.time
-  );
+  // Seletores de data e horário.
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
-  // Controle dos seletores de data e horário.
-  const [showDatePicker, setShowDatePicker] =
-    useState(false);
-
-  const [showTimePicker, setShowTimePicker] =
-    useState(false);
-
-  // Controle da geolocalização.
-  const [loadingLocation, setLoadingLocation] =
-    useState(false);
-
-  // Controle do salvamento na API.
+  // Estados de carregamento.
+  const [loadingLocation, setLoadingLocation] = useState(false);
   const [saving, setSaving] = useState(false);
-  const savingRef = useRef(false);
 
-  // Identifica a solicitação de GPS mais recente.
+  // Impede múltiplas requisições simultâneas.
+  const savingRef = useRef(false);
   const requestId = useRef(0);
 
-  // Invalida solicitações pendentes quando
-  // o modal é desmontado.
+  // Invalida consultas de GPS ao desmontar.
   useEffect(() => {
     return () => {
       requestId.current += 1;
@@ -126,34 +113,30 @@ export default function EditActivityModal({
   }, []);
 
   function handleLocationTextChange(value: string) {
-    // A entrada manual tem prioridade sobre
-    // resultados pendentes do GPS.
+    // A entrada manual tem prioridade sobre o GPS.
     requestId.current += 1;
-
     setLoadingLocation(false);
     setLocation(value);
   }
 
+  // ==================================================
+  // GEOLOCALIZAÇÃO
+  // ==================================================
+
   async function handleGetLocation() {
-    if (
-      loadingLocation ||
-      savingRef.current
-    ) {
+    if (loadingLocation || savingRef.current) {
       return;
     }
 
     const currentRequest = ++requestId.current;
-
     setLoadingLocation(true);
 
     try {
-      // 1. Verifica se a localização está ativa.
+      // 1. Verifica se a localização está ativada.
       const enabled =
         await Location.hasServicesEnabledAsync();
 
-      if (
-        currentRequest !== requestId.current
-      ) {
+      if (currentRequest !== requestId.current) {
         return;
       }
 
@@ -165,14 +148,11 @@ export default function EditActivityModal({
         return;
       }
 
-      // 2. Solicita permissão de localização
-      // em primeiro plano.
+      // 2. Solicita permissão.
       const permission =
         await Location.requestForegroundPermissionsAsync();
 
-      if (
-        currentRequest !== requestId.current
-      ) {
+      if (currentRequest !== requestId.current) {
         return;
       }
 
@@ -213,9 +193,7 @@ export default function EditActivityModal({
           LOCATION_TIMEOUT_MS
         );
       } catch (currentPositionError) {
-        if (
-          currentRequest !== requestId.current
-        ) {
+        if (currentRequest !== requestId.current) {
           return;
         }
 
@@ -224,7 +202,7 @@ export default function EditActivityModal({
           currentPositionError
         );
 
-        // 4. Tenta recuperar a última posição.
+        // 4. Tenta recuperar a última posição conhecida.
         let lastKnownPosition:
           | Location.LocationObject
           | null = null;
@@ -243,9 +221,7 @@ export default function EditActivityModal({
           );
         }
 
-        if (
-          currentRequest !== requestId.current
-        ) {
+        if (currentRequest !== requestId.current) {
           return;
         }
 
@@ -257,10 +233,7 @@ export default function EditActivityModal({
           now - lastKnownPosition.timestamp <=
             LAST_LOCATION_MAX_AGE_MS;
 
-        if (
-          !lastKnownPosition ||
-          !isRecent
-        ) {
+        if (!lastKnownPosition || !isRecent) {
           const timedOut =
             currentPositionError instanceof
             LocationTimeoutError;
@@ -281,16 +254,11 @@ export default function EditActivityModal({
         usedLastKnownPosition = true;
       }
 
-      if (
-        currentRequest !== requestId.current
-      ) {
+      if (currentRequest !== requestId.current) {
         return;
       }
 
-      const {
-        latitude,
-        longitude,
-      } = position.coords;
+      const { latitude, longitude } = position.coords;
 
       // 5. Mantém as coordenadas como alternativa.
       let formattedLocation =
@@ -298,7 +266,7 @@ export default function EditActivityModal({
 
       let addressFound = false;
 
-      // 6. Converte as coordenadas em endereço.
+      // 6. Tenta converter as coordenadas em endereço.
       try {
         const addresses = await withTimeout(
           Location.reverseGeocodeAsync({
@@ -308,9 +276,7 @@ export default function EditActivityModal({
           GEOCODING_TIMEOUT_MS
         );
 
-        if (
-          currentRequest !== requestId.current
-        ) {
+        if (currentRequest !== requestId.current) {
           return;
         }
 
@@ -343,23 +309,19 @@ export default function EditActivityModal({
         );
       }
 
-      if (
-        currentRequest !== requestId.current
-      ) {
+      if (currentRequest !== requestId.current) {
         return;
       }
 
       // 7. Atualiza o campo Local.
       setLocation(formattedLocation);
 
-      // 8. Informa quando foi necessário
-      // utilizar uma posição anterior.
+      // 8. Informa quando a última posição foi usada.
       if (usedLastKnownPosition) {
         const secondsAgo = Math.max(
           0,
           Math.round(
-            (Date.now() - position.timestamp) /
-              1000
+            (Date.now() - position.timestamp) / 1000
           )
         );
 
@@ -378,9 +340,7 @@ export default function EditActivityModal({
         );
       }
     } catch (error: unknown) {
-      if (
-        currentRequest !== requestId.current
-      ) {
+      if (currentRequest !== requestId.current) {
         return;
       }
 
@@ -394,17 +354,17 @@ export default function EditActivityModal({
         "Ocorreu um problema ao acessar os serviços de localização. Verifique as permissões, tente novamente ou digite o local manualmente."
       );
     } finally {
-      if (
-        currentRequest === requestId.current
-      ) {
+      if (currentRequest === requestId.current) {
         setLoadingLocation(false);
       }
     }
   }
 
-  // Salva as alterações no backend.
+  // ==================================================
+  // SALVAMENTO DAS ALTERAÇÕES NO BACKEND
+  // ==================================================
+
   async function handleSave() {
-    // Impede envios duplicados.
     if (savingRef.current) {
       return;
     }
@@ -421,10 +381,7 @@ export default function EditActivityModal({
     const trimmedDescription = description.trim();
     const trimmedLocation = location.trim();
 
-    if (
-      !trimmedTitle ||
-      !trimmedLocation
-    ) {
+    if (!trimmedTitle || !trimmedLocation) {
       Alert.alert(
         "Campos obrigatórios",
         "Preencha a atividade e o local."
@@ -432,10 +389,10 @@ export default function EditActivityModal({
       return;
     }
 
-    if (trimmedLocation.length > 255) {
+    if (trimmedLocation.length > 240) {
       Alert.alert(
         "Local muito longo",
-        "O local deve ter no máximo 255 caracteres."
+        "O local deve ter no máximo 240 caracteres."
       );
       return;
     }
@@ -455,7 +412,7 @@ export default function EditActivityModal({
     setSaving(true);
 
     try {
-      // Aguarda o NestJS atualizar o registro.
+      // Aguarda o NestJS confirmar a edição.
       const updated = await updateActivity(
         activity.id,
         {
@@ -475,7 +432,7 @@ export default function EditActivityModal({
         return;
       }
 
-      // Fecha somente após a confirmação da API.
+      // Fecha apenas depois da confirmação do backend.
       onClose();
 
       Alert.alert(
@@ -503,10 +460,14 @@ export default function EditActivityModal({
       return;
     }
 
-    // Invalida possíveis consultas de GPS pendentes.
+    // Invalida consultas pendentes de GPS.
     requestId.current += 1;
     onClose();
   }
+
+  // ==================================================
+  // INTERFACE
+  // ==================================================
 
   return (
     <Modal
@@ -539,6 +500,8 @@ export default function EditActivityModal({
               value={title}
               onChangeText={setTitle}
               placeholder="Nome da atividade"
+              placeholderTextColor={colors.placeholder}
+              selectionColor={colors.primary}
               maxLength={120}
               editable={!saving}
             />
@@ -562,6 +525,8 @@ export default function EditActivityModal({
               value={description}
               onChangeText={setDescription}
               placeholder="Descrição da atividade"
+              placeholderTextColor={colors.placeholder}
+              selectionColor={colors.primary}
               multiline
               numberOfLines={3}
               maxLength={1000}
@@ -580,10 +545,11 @@ export default function EditActivityModal({
                 styles.selector,
                 saving && { opacity: 0.6 },
               ]}
-              onPress={() =>
-                setShowDatePicker(true)
-              }
+              onPress={() => {
+                setShowDatePicker(true);
+              }}
               disabled={saving}
+              accessibilityRole="button"
             >
               <Text style={styles.selectorText}>
                 {date.toLocaleDateString("pt-BR")}
@@ -595,10 +561,7 @@ export default function EditActivityModal({
                 value={date}
                 mode="date"
                 display="default"
-                onValueChange={(
-                  _,
-                  selectedDate
-                ) => {
+                onValueChange={(_, selectedDate) => {
                   if (
                     selectedDate &&
                     !savingRef.current
@@ -610,9 +573,9 @@ export default function EditActivityModal({
                     setShowDatePicker(false);
                   }
                 }}
-                onDismiss={() =>
-                  setShowDatePicker(false)
-                }
+                onDismiss={() => {
+                  setShowDatePicker(false);
+                }}
               />
             )}
           </View>
@@ -628,10 +591,11 @@ export default function EditActivityModal({
                 styles.selector,
                 saving && { opacity: 0.6 },
               ]}
-              onPress={() =>
-                setShowTimePicker(true)
-              }
+              onPress={() => {
+                setShowTimePicker(true);
+              }}
               disabled={saving}
+              accessibilityRole="button"
             >
               <Text style={styles.selectorText}>
                 {time.toLocaleTimeString("pt-BR", {
@@ -647,10 +611,7 @@ export default function EditActivityModal({
                 mode="time"
                 display="default"
                 is24Hour
-                onValueChange={(
-                  _,
-                  selectedTime
-                ) => {
+                onValueChange={(_, selectedTime) => {
                   if (
                     selectedTime &&
                     !savingRef.current
@@ -662,9 +623,9 @@ export default function EditActivityModal({
                     setShowTimePicker(false);
                   }
                 }}
-                onDismiss={() =>
-                  setShowTimePicker(false)
-                }
+                onDismiss={() => {
+                  setShowTimePicker(false);
+                }}
               />
             )}
           </View>
@@ -680,7 +641,9 @@ export default function EditActivityModal({
               value={location}
               onChangeText={handleLocationTextChange}
               placeholder="Digite o local ou use sua localização"
-              maxLength={255}
+              placeholderTextColor={colors.placeholder}
+              selectionColor={colors.primary}
+              maxLength={240}
               editable={!saving}
             />
 
@@ -701,13 +664,11 @@ export default function EditActivityModal({
               {loadingLocation && (
                 <ActivityIndicator
                   size="small"
-                  color="#2563EB"
+                  color={colors.primary}
                 />
               )}
 
-              <Text
-                style={styles.locationButtonText}
-              >
+              <Text style={styles.locationButtonText}>
                 {loadingLocation
                   ? "Obtendo localização..."
                   : "Usar minha localização"}
@@ -727,9 +688,7 @@ export default function EditActivityModal({
               disabled={saving}
               accessibilityRole="button"
             >
-              <Text
-                style={styles.cancelButtonText}
-              >
+              <Text style={styles.cancelButtonText}>
                 Cancelar
               </Text>
             </Pressable>
@@ -751,13 +710,11 @@ export default function EditActivityModal({
               {saving && (
                 <ActivityIndicator
                   size="small"
-                  color="#FFFFFF"
+                  color={colors.onPrimary}
                 />
               )}
 
-              <Text
-                style={styles.saveButtonText}
-              >
+              <Text style={styles.saveButtonText}>
                 {saving
                   ? "Salvando..."
                   : "Salvar alterações"}

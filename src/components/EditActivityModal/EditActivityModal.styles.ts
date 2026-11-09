@@ -1,132 +1,138 @@
+
 import { StyleSheet } from "react-native";
 
-export const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F9FAFB",
-  },
+import type { AppColors } from "../../theme/colors";
 
-  content: {
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    paddingBottom: 32,
-  },
+export function createEditActivityModalStyles(
+  colors: AppColors
+) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
 
-  title: {
-    fontSize: 24,
-    fontWeight: "600",
-    color: "#101828",
-  },
+    content: {
+      paddingHorizontal: 24,
+      paddingTop: 32,
+      paddingBottom: 32,
+    },
 
-  subtitle: {
-    fontSize: 14,
-    color: "#667085",
-    marginTop: 6,
-    marginBottom: 28,
-  },
+    title: {
+      fontSize: 24,
+      fontWeight: "600",
+      color: colors.text,
+    },
 
-  field: {
-    marginBottom: 18,
-  },
+    subtitle: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      marginTop: 6,
+      marginBottom: 28,
+    },
 
-  label: {
-    fontSize: 14,
-    fontWeight: "500",
-    marginBottom: 6,
-  },
+    field: {
+      marginBottom: 18,
+    },
 
-  input: {
-    minHeight: 48,
-    borderWidth: 1,
-    borderColor: "#D0D5DD",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    fontSize: 16,
-    backgroundColor: "#FFFFFF",
-  },
+    label: {
+      fontSize: 14,
+      fontWeight: "500",
+      marginBottom: 6,
+      color: colors.text,
+    },
 
-  selector: {
-    height: 48,
-    borderWidth: 1,
-    borderColor: "#D0D5DD",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    backgroundColor: "#FFFFFF",
-    justifyContent: "center",
-  },
+    input: {
+      minHeight: 48,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      fontSize: 16,
+      color: colors.text,
+      backgroundColor: colors.surface,
+    },
 
-  selectorText: {
-    fontSize: 16,
-    color: "#101828",
-  },
+    selector: {
+      height: 48,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      backgroundColor: colors.surface,
+      justifyContent: "center",
+    },
 
-  actions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: 10,
-    marginTop: 12,
-  },
+    selectorText: {
+      fontSize: 16,
+      color: colors.text,
+    },
 
-  cancelButton: {
-    minHeight: 48,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: "#D0D5DD",
-    borderRadius: 8,
-    backgroundColor: "#FFFFFF",
-  },
+    actions: {
+      flexDirection: "row",
+      justifyContent: "flex-end",
+      gap: 10,
+      marginTop: 12,
+    },
 
-  cancelButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-  },
+    cancelButton: {
+      minHeight: 48,
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 8,
+      backgroundColor: colors.surface,
+    },
 
-  saveButton: {
-    minHeight: 48,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 14,
-    backgroundColor: "#2563EB",
-    borderRadius: 8,
-  },
+    cancelButtonText: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: colors.text,
+    },
 
-  saveButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#FFFFFF",
-  },
+    saveButton: {
+      minHeight: 48,
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: 14,
+      backgroundColor: colors.primary,
+      borderRadius: 8,
+    },
 
-  pressed: {
-    opacity: 0.7,
-  },
+    saveButtonText: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: colors.onPrimary,
+    },
 
-  // Botão para obter a localização automaticamente
-locationButton: {
-  minHeight: 44,
-  marginTop: 8,
-  borderWidth: 1,
-  borderColor: "#2563EB",
-  borderRadius: 8,
-  paddingHorizontal: 12,
-  flexDirection: "row",
-  justifyContent: "center",
-  alignItems: "center",
-  gap: 8,
-  backgroundColor: "#EFF6FF",
-},
+    pressed: {
+      opacity: 0.7,
+    },
 
-// Texto do botão
-locationButtonText: {
-  color: "#2563EB",
-  fontSize: 14,
-  fontWeight: "600",
-},
+    locationButton: {
+      minHeight: 44,
+      marginTop: 8,
+      borderWidth: 1,
+      borderColor: colors.primary,
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center",
+      gap: 8,
+      backgroundColor: colors.primarySurface,
+    },
 
-// Aparência durante a obtenção da localização
-locationButtonDisabled: {
-  opacity: 0.6,
-},
+    locationButtonText: {
+      color: colors.primary,
+      fontSize: 14,
+      fontWeight: "600",
+    },
 
-});
+    locationButtonDisabled: {
+      opacity: 0.6,
+    },
+  });
+}

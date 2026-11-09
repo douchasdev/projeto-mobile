@@ -1,140 +1,150 @@
 
 import { StyleSheet } from "react-native";
 
-export const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: "center",
-    padding: 24,
-  },
+import type { AppColors } from "../../theme/colors";
 
-  form: {
-    width: "100%",
-    maxWidth: 500,
-    alignSelf: "center",
-  },
+export function createActivityFormStyles(
+  colors: AppColors
+) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      justifyContent: "center",
+      padding: 24,
+      backgroundColor: colors.background,
+    },
 
-  title: {
-    fontSize: 24,
-    fontWeight: "600",
-    marginBottom: 24,
-  },
+    form: {
+      width: "100%",
+      maxWidth: 500,
+      alignSelf: "center",
+    },
 
-  field: {
-    marginBottom: 16,
-  },
+    title: {
+      fontSize: 24,
+      fontWeight: "600",
+      marginBottom: 24,
+      color: colors.text,
+    },
 
-  label: {
-    fontSize: 14,
-    fontWeight: "500",
-    marginBottom: 6,
-  },
+    field: {
+      marginBottom: 16,
+    },
 
-  input: {
-    height: 48,
-    borderWidth: 1,
-    borderColor: "#D0D5DD",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    fontSize: 16,
-    backgroundColor: "#FFFFFF",
-  },
+    label: {
+      fontSize: 14,
+      fontWeight: "500",
+      marginBottom: 6,
+      color: colors.text,
+    },
 
-  selector: {
-    height: 48,
-    borderWidth: 1,
-    borderColor: "#D0D5DD",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    backgroundColor: "#FFFFFF",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
+    input: {
+      height: 48,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      fontSize: 16,
+      backgroundColor: colors.surface,
+      color: colors.text,
+    },
 
-  selectorPressed: {
-    opacity: 0.7,
-  },
+    selector: {
+      height: 48,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      backgroundColor: colors.surface,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
 
-  selectorText: {
-    fontSize: 16,
-  },
+    selectorPressed: {
+      opacity: 0.7,
+    },
 
-  placeholderText: {
-    fontSize: 16,
-    color: "#888888",
-  },
+    selectorText: {
+      fontSize: 16,
+      color: colors.text,
+    },
 
-  selectorIcon: {
-    fontSize: 18,
-    color: "#667085",
-  },
+    placeholderText: {
+      fontSize: 16,
+      color: colors.placeholder,
+    },
 
-  // Botão de localização automática.
-  locationButton: {
-    minHeight: 44,
-    marginTop: 8,
-    borderWidth: 1,
-    borderColor: "#2563EB",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "#EFF6FF",
-  },
+    selectorIcon: {
+      fontSize: 18,
+      color: colors.textSecondary,
+    },
 
-  locationButtonText: {
-    color: "#2563EB",
-    fontSize: 14,
-    fontWeight: "600",
-  },
+    locationButton: {
+      minHeight: 44,
+      marginTop: 8,
+      borderWidth: 1,
+      borderColor: colors.primary,
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center",
+      gap: 8,
+      backgroundColor: colors.primarySurface,
+    },
 
-  // Aparência enquanto a localização está sendo obtida.
-  locationButtonDisabled: {
-    opacity: 0.6,
-  },
+    locationButtonText: {
+      color: colors.primary,
+      fontSize: 14,
+      fontWeight: "600",
+    },
 
-  actions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: 12,
-    marginTop: 16,
-  },
+    locationButtonDisabled: {
+      opacity: 0.6,
+    },
 
-  cancelButton: {
-    height: 48,
-    paddingHorizontal: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#D0D5DD",
-    borderRadius: 8,
-    backgroundColor: "#FFFFFF",
-  },
+    actions: {
+      flexDirection: "row",
+      justifyContent: "flex-end",
+      gap: 12,
+      marginTop: 16,
+    },
 
-  createButton: {
-    height: 48,
-    paddingHorizontal: 24,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#2563EB",
-    borderRadius: 8,
-  },
+    cancelButton: {
+      height: 48,
+      paddingHorizontal: 20,
+      justifyContent: "center",
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 8,
+      backgroundColor: colors.surface,
+    },
 
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: "500",
-  },
+    createButton: {
+      height: 48,
+      paddingHorizontal: 24,
+      justifyContent: "center",
+      alignItems: "center",
+      backgroundColor: colors.primary,
+      borderRadius: 8,
+    },
 
-  createButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
+    cancelButtonText: {
+      color: colors.text,
+      fontSize: 16,
+      fontWeight: "500",
+    },
 
-  buttonPressed: {
-    opacity: 0.7,
-  },
-});
+    createButtonText: {
+      color: colors.onPrimary,
+      fontSize: 16,
+      fontWeight: "600",
+    },
+
+    buttonPressed: {
+      opacity: 0.7,
+    },
+  });
+}

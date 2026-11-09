@@ -18,20 +18,14 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Location from "expo-location";
 
 import { useActivities } from "../../contexts/ActivitiesContext";
+import { useTheme } from "../../contexts/ThemeContext";
 import { getApiErrorMessage } from "../../services/api";
+import { createActivityFormStyles } from "./ActivityForm.styles";
 
-import { styles } from "./ActivityForm.styles";
-
-// Tempo máximo para obter a localização atual.
+// Configurações da geolocalização.
 const LOCATION_TIMEOUT_MS = 10000;
-
-// Aceita posição anterior com até 60 segundos.
 const LAST_LOCATION_MAX_AGE_MS = 60000;
-
-// Tempo máximo para consultar a última posição.
 const FALLBACK_TIMEOUT_MS = 3000;
-
-// Tempo máximo para converter coordenadas em endereço.
 const GEOCODING_TIMEOUT_MS = 5000;
 
 class LocationTimeoutError extends Error {
@@ -41,23 +35,18 @@ class LocationTimeoutError extends Error {
   }
 }
 
-// Limita o tempo de espera de uma operação assíncrona.
-// Não cancela a operação nativa, apenas deixa de aguardá-la.
+// Limita a espera sem necessariamente cancelar a operação nativa.
 function withTimeout<T>(
   promise: Promise<T>,
   milliseconds: number
 ): Promise<T> {
-  let timeoutId:
-    | ReturnType<typeof setTimeout>
-    | undefined;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
-  const timeoutPromise = new Promise<never>(
-    (_, reject) => {
-      timeoutId = setTimeout(() => {
-        reject(new LocationTimeoutError());
-      }, milliseconds);
-    }
-  );
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new LocationTimeoutError());
+    }, milliseconds);
+  });
 
   return Promise.race([
     promise,
@@ -70,40 +59,33 @@ function withTimeout<T>(
 }
 
 export default function ActivityForm() {
+  // Dark Mode.
+  const { colors } = useTheme();
+  const styles = createActivityFormStyles(colors);
+
+  // Integração com o backend.
   const { addActivity } = useActivities();
 
+  // Campos do formulário.
   const [activity, setActivity] = useState("");
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
 
-  const [date, setDate] = useState<Date | null>(
-    null
-  );
+  const [date, setDate] = useState<Date | null>(null);
+  const [time, setTime] = useState<Date | null>(null);
 
-  const [time, setTime] = useState<Date | null>(
-    null
-  );
+  // Seletores de data e horário.
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
-  const [showDatePicker, setShowDatePicker] =
-    useState(false);
-
-  const [showTimePicker, setShowTimePicker] =
-    useState(false);
-
-  const [loadingLocation, setLoadingLocation] =
-    useState(false);
-
+  // Estados de carregamento.
+  const [loadingLocation, setLoadingLocation] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Evita múltiplas requisições de criação
-  // mesmo antes de o estado saving atualizar.
+  // Proteção contra múltiplas solicitações.
   const savingRef = useRef(false);
-
-  // Identifica a solicitação de GPS mais recente.
   const requestId = useRef(0);
 
-  // Invalida solicitações de localização pendentes
-  // quando o componente é desmontado.
   useEffect(() => {
     return () => {
       requestId.current += 1;
@@ -111,17 +93,14 @@ export default function ActivityForm() {
   }, []);
 
   function resetForm() {
-    // Impede que uma localização solicitada
-    // anteriormente altere o formulário limpo.
+    // Invalida solicitações de GPS anteriores.
     requestId.current += 1;
 
     setActivity("");
     setDescription("");
     setLocation("");
-
     setDate(null);
     setTime(null);
-
     setShowDatePicker(false);
     setShowTimePicker(false);
     setLoadingLocation(false);
@@ -149,35 +128,30 @@ export default function ActivityForm() {
   }
 
   function handleLocationTextChange(value: string) {
-    // A digitação manual tem prioridade sobre
-    // uma solicitação de GPS ainda em andamento.
+    // Impede que o GPS sobrescreva uma localização digitada.
     requestId.current += 1;
-
     setLoadingLocation(false);
     setLocation(value);
   }
 
+  // ==================================================
+  // GEOLOCALIZAÇÃO
+  // ==================================================
+
   async function handleGetLocation() {
-    if (
-      loadingLocation ||
-      savingRef.current
-    ) {
+    if (loadingLocation || savingRef.current) {
       return;
     }
 
     const currentRequest = ++requestId.current;
-
     setLoadingLocation(true);
 
     try {
-      // 1. Verifica se os serviços de
-      // localização estão ativados.
+      // 1. Verifica se a localização está ativada.
       const enabled =
         await Location.hasServicesEnabledAsync();
 
-      if (
-        currentRequest !== requestId.current
-      ) {
+      if (currentRequest !== requestId.current) {
         return;
       }
 
@@ -189,13 +163,11 @@ export default function ActivityForm() {
         return;
       }
 
-      // 2. Solicita permissão em primeiro plano.
+      // 2. Solicita permissão.
       const permission =
         await Location.requestForegroundPermissionsAsync();
 
-      if (
-        currentRequest !== requestId.current
-      ) {
+      if (currentRequest !== requestId.current) {
         return;
       }
 
@@ -236,9 +208,7 @@ export default function ActivityForm() {
           LOCATION_TIMEOUT_MS
         );
       } catch (currentPositionError) {
-        if (
-          currentRequest !== requestId.current
-        ) {
+        if (currentRequest !== requestId.current) {
           return;
         }
 
@@ -247,8 +217,7 @@ export default function ActivityForm() {
           currentPositionError
         );
 
-        // 4. Tenta recuperar a última
-        // posição conhecida.
+        // 4. Caso falhe, tenta a última posição conhecida.
         let lastKnownPosition:
           | Location.LocationObject
           | null = null;
@@ -262,19 +231,15 @@ export default function ActivityForm() {
           );
         } catch (fallbackError) {
           console.warn(
-            "Falha ao consultar última localização:",
+            "Falha ao recuperar última localização:",
             fallbackError
           );
         }
 
-        if (
-          currentRequest !== requestId.current
-        ) {
+        if (currentRequest !== requestId.current) {
           return;
         }
 
-        // Verifica se a posição anterior
-        // ainda está dentro do prazo permitido.
         const now = Date.now();
 
         const isRecent =
@@ -283,10 +248,7 @@ export default function ActivityForm() {
           now - lastKnownPosition.timestamp <=
             LAST_LOCATION_MAX_AGE_MS;
 
-        if (
-          !lastKnownPosition ||
-          !isRecent
-        ) {
+        if (!lastKnownPosition || !isRecent) {
           const timedOut =
             currentPositionError instanceof
             LocationTimeoutError;
@@ -297,7 +259,7 @@ export default function ActivityForm() {
               : "Localização indisponível",
             timedOut
               ? "O celular demorou mais de 10 segundos para obter sua posição e não encontramos uma localização recente. Tente novamente ou informe o endereço manualmente."
-              : "Não foi possível determinar sua posição atual nem recuperar uma localização recente. Verifique o sinal e tente novamente ou informe o local manualmente."
+              : "Não foi possível determinar sua posição atual nem recuperar uma localização recente. Verifique o sinal e tente novamente."
           );
 
           return;
@@ -307,24 +269,19 @@ export default function ActivityForm() {
         usedLastKnownPosition = true;
       }
 
-      if (
-        currentRequest !== requestId.current
-      ) {
+      if (currentRequest !== requestId.current) {
         return;
       }
 
-      const {
-        latitude,
-        longitude,
-      } = position.coords;
+      const { latitude, longitude } = position.coords;
 
-      // 5. Utiliza coordenadas como fallback.
+      // 5. Coordenadas como alternativa ao endereço.
       let formattedLocation =
         `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
 
       let addressFound = false;
 
-      // 6. Tenta converter coordenadas em endereço.
+      // 6. Converte coordenadas em endereço.
       try {
         const addresses = await withTimeout(
           Location.reverseGeocodeAsync({
@@ -334,9 +291,7 @@ export default function ActivityForm() {
           GEOCODING_TIMEOUT_MS
         );
 
-        if (
-          currentRequest !== requestId.current
-        ) {
+        if (currentRequest !== requestId.current) {
           return;
         }
 
@@ -369,29 +324,29 @@ export default function ActivityForm() {
         );
       }
 
-      if (
-        currentRequest !== requestId.current
-      ) {
+      if (currentRequest !== requestId.current) {
         return;
       }
 
       // 7. Preenche o campo Local.
       setLocation(formattedLocation);
 
-      // 8. Informa se foi necessário usar
-      // uma localização anterior.
+      // 8. Informa quando foi usada uma posição anterior.
       if (usedLastKnownPosition) {
         const secondsAgo = Math.max(
           0,
           Math.round(
-            (Date.now() - position.timestamp) /
-              1000
+            (Date.now() - position.timestamp) / 1000
           )
         );
 
+        const warning = addressFound
+          ? "Confira o endereço antes de salvar."
+          : "O endereço não foi identificado. As coordenadas foram preenchidas. Confira o local antes de salvar.";
+
         Alert.alert(
           "Última localização conhecida",
-          `Não foi possível obter sua posição atual. Utilizamos uma localização registrada há aproximadamente ${secondsAgo} segundos. Confira o local antes de criar a atividade.`
+          `Não foi possível obter sua posição atual. Utilizamos uma localização registrada há aproximadamente ${secondsAgo} segundos. ${warning}`
         );
       } else if (!addressFound) {
         Alert.alert(
@@ -400,14 +355,12 @@ export default function ActivityForm() {
         );
       }
     } catch (error: unknown) {
-      if (
-        currentRequest !== requestId.current
-      ) {
+      if (currentRequest !== requestId.current) {
         return;
       }
 
       console.error(
-        "Erro inesperado ao obter localização:",
+        "Erro ao obter localização:",
         error
       );
 
@@ -416,15 +369,16 @@ export default function ActivityForm() {
         "Ocorreu um problema ao acessar os serviços de localização. Verifique as permissões, tente novamente ou informe o local manualmente."
       );
     } finally {
-      if (
-        currentRequest === requestId.current
-      ) {
+      if (currentRequest === requestId.current) {
         setLoadingLocation(false);
       }
     }
   }
 
-  // Envia a atividade ao backend.
+  // ==================================================
+  // CRIAÇÃO DA ATIVIDADE
+  // ==================================================
+
   async function handleCreate() {
     if (savingRef.current) {
       return;
@@ -485,10 +439,10 @@ export default function ActivityForm() {
       return;
     }
 
-    if (trimmedLocation.length > 255) {
+    if (trimmedLocation.length > 240) {
       Alert.alert(
         "Local muito longo",
-        "O local deve ter no máximo 255 caracteres."
+        "O local deve ter no máximo 240 caracteres."
       );
       return;
     }
@@ -497,7 +451,6 @@ export default function ActivityForm() {
     setSaving(true);
 
     try {
-      // Aguarda o servidor confirmar a criação.
       await addActivity({
         title,
         description: trimmedDescription,
@@ -506,7 +459,7 @@ export default function ActivityForm() {
         location: trimmedLocation,
       });
 
-      // Limpa somente após salvar com sucesso.
+      // Limpa somente após a confirmação da API.
       resetForm();
 
       Alert.alert(
@@ -537,6 +490,10 @@ export default function ActivityForm() {
     resetForm();
   }
 
+  // ==================================================
+  // INTERFACE
+  // ==================================================
+
   return (
     <KeyboardAvoidingView
       behavior={
@@ -549,6 +506,7 @@ export default function ActivityForm() {
       <ScrollView
         contentContainerStyle={{
           flexGrow: 1,
+          justifyContent: "center",
         }}
         keyboardShouldPersistTaps="handled"
       >
@@ -557,7 +515,7 @@ export default function ActivityForm() {
             Nova atividade
           </Text>
 
-          {/* Atividade */}
+          {/* Nome */}
           <View style={styles.field}>
             <Text style={styles.label}>
               Atividade
@@ -566,6 +524,8 @@ export default function ActivityForm() {
             <TextInput
               style={styles.input}
               placeholder="Ex.: Vôlei"
+              placeholderTextColor={colors.placeholder}
+              selectionColor={colors.primary}
               value={activity}
               onChangeText={setActivity}
               maxLength={120}
@@ -589,6 +549,8 @@ export default function ActivityForm() {
                 },
               ]}
               placeholder="Descreva sua atividade"
+              placeholderTextColor={colors.placeholder}
+              selectionColor={colors.primary}
               value={description}
               onChangeText={setDescription}
               multiline
@@ -610,10 +572,11 @@ export default function ActivityForm() {
                 pressed && styles.selectorPressed,
                 saving && { opacity: 0.6 },
               ]}
-              onPress={() =>
-                setShowDatePicker(true)
-              }
+              onPress={() => {
+                setShowDatePicker(true);
+              }}
               disabled={saving}
+              accessibilityRole="button"
             >
               <Text
                 style={
@@ -637,15 +600,16 @@ export default function ActivityForm() {
                 value={date ?? new Date()}
                 mode="date"
                 display="default"
-                onValueChange={(
-                  _,
-                  selectedDate
-                ) => {
+                onValueChange={(_, selectedDate) => {
                   if (
                     selectedDate &&
                     !savingRef.current
                   ) {
                     handleDateChange(selectedDate);
+                  }
+
+                  if (Platform.OS === "android") {
+                    setShowDatePicker(false);
                   }
                 }}
                 onDismiss={() => {
@@ -667,10 +631,11 @@ export default function ActivityForm() {
                 pressed && styles.selectorPressed,
                 saving && { opacity: 0.6 },
               ]}
-              onPress={() =>
-                setShowTimePicker(true)
-              }
+              onPress={() => {
+                setShowTimePicker(true);
+              }}
               disabled={saving}
+              accessibilityRole="button"
             >
               <Text
                 style={
@@ -695,15 +660,16 @@ export default function ActivityForm() {
                 mode="time"
                 display="default"
                 is24Hour
-                onValueChange={(
-                  _,
-                  selectedTime
-                ) => {
+                onValueChange={(_, selectedTime) => {
                   if (
                     selectedTime &&
                     !savingRef.current
                   ) {
                     handleTimeChange(selectedTime);
+                  }
+
+                  if (Platform.OS === "android") {
+                    setShowTimePicker(false);
                   }
                 }}
                 onDismiss={() => {
@@ -722,9 +688,11 @@ export default function ActivityForm() {
             <TextInput
               style={styles.input}
               placeholder="Digite o local ou use sua localização"
+              placeholderTextColor={colors.placeholder}
+              selectionColor={colors.primary}
               value={location}
               onChangeText={handleLocationTextChange}
-              maxLength={255}
+              maxLength={240}
               editable={!saving}
             />
 
@@ -745,13 +713,11 @@ export default function ActivityForm() {
               {loadingLocation && (
                 <ActivityIndicator
                   size="small"
-                  color="#2563EB"
+                  color={colors.primary}
                 />
               )}
 
-              <Text
-                style={styles.locationButtonText}
-              >
+              <Text style={styles.locationButtonText}>
                 {loadingLocation
                   ? "Obtendo localização..."
                   : "Usar minha localização"}
@@ -771,9 +737,7 @@ export default function ActivityForm() {
               disabled={saving}
               accessibilityRole="button"
             >
-              <Text
-                style={styles.cancelButtonText}
-              >
+              <Text style={styles.cancelButtonText}>
                 Cancelar
               </Text>
             </Pressable>
@@ -795,13 +759,11 @@ export default function ActivityForm() {
               {saving && (
                 <ActivityIndicator
                   size="small"
-                  color="#FFFFFF"
+                  color={colors.onPrimary}
                 />
               )}
 
-              <Text
-                style={styles.createButtonText}
-              >
+              <Text style={styles.createButtonText}>
                 {saving
                   ? "Salvando..."
                   : "Criar"}
