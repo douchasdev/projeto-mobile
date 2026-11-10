@@ -1,936 +1,655 @@
-# Projeto Mobile - Gerenciador de Atividades
+# Projeto Mobile — Gerenciador de Atividades
 
-Aplicativo mobile desenvolvido com **React Native**, **Expo** e **TypeScript** para gerenciamento de atividades.
+Aplicativo mobile desenvolvido com **React Native, Expo e TypeScript**, voltado ao gerenciamento de atividades físicas e esportivas.
 
-A aplicação permite cadastrar atividades, visualizar tarefas pendentes e concluídas, alterar o status de uma atividade e configurar a exibição das atividades concluídas.
+O sistema permite que usuários cadastrem e gerenciem atividades, visualizem atividades de outras pessoas e demonstrem interesse em participar.
 
-O projeto foi desenvolvido com o objetivo de aplicar os principais conceitos de desenvolvimento mobile trabalhados em aula, como componentes funcionais, Props, State, componentes básicos do React Native, StyleSheet, Flexbox, listas e navegação entre telas.
+O projeto integra consumo de APIs REST, autenticação JWT, persistência local de preferências, armazenamento SQLite para leitura offline e geolocalização.
 
----
+## Repositórios
 
-## Funcionalidades
+- **Frontend:** https://github.com/douchasdev/projeto-mobile
+- **Backend:** https://github.com/douchasdev/projeto-mobile-api
 
-A aplicação possui três telas principais: **Home**, **Criar** e **Perfil**.
+## 1. Objetivo
 
-### Home
+Desenvolver uma aplicação mobile que permita organizar atividades físicas e esportivas, integrando recursos de comunicação em rede, armazenamento local e funcionalidades nativas do dispositivo.
 
-A tela inicial apresenta as atividades cadastradas utilizando uma `FlatList`.
+O projeto foi desenvolvido em etapas.
 
-Cada atividade apresenta:
+Na primeira etapa, foram implementados a interface, a navegação, os componentes reutilizáveis e o gerenciamento de atividades.
 
-- Nome da atividade;
-- Data;
-- Horário;
+Na segunda etapa, foram acrescentados os seguintes requisitos:
+
+- **Consumo de APIs com Axios e JSON;**
+- **Persistência local com AsyncStorage;**
+- **Persistência local com SQLite;**
+- **Geolocalização utilizando GPS.**
+
+Também foram implementadas autenticação de usuários, identificação do criador das atividades e registro de interesse em participar.
+
+## 2. Tecnologias utilizadas
+
+| Tecnologia | Finalidade |
+|---|---|
+| React Native | Desenvolvimento da interface mobile |
+| Expo SDK 57 | Ambiente de desenvolvimento e acesso a recursos nativos |
+| TypeScript | Tipagem estática |
+| Expo Router | Navegação entre telas |
+| React Context API | Gerenciamento de estados compartilhados |
+| Axios | Comunicação HTTP com a API |
+| JSON | Formato de troca de dados |
+| AsyncStorage | Persistência de preferências locais |
+| Expo SQLite | Cache local de atividades |
+| Expo Location | Geolocalização e conversão de coordenadas |
+| Expo SecureStore | Armazenamento do token de autenticação |
+| React Native DateTimePicker | Seleção de data e horário |
+| React Native Safe Area Context | Ajuste da interface às áreas seguras do dispositivo |
+
+O backend utiliza NestJS, Prisma e MySQL, em repositório separado.
+
+## 3. Funcionalidades
+
+### 3.1. Autenticação
+
+- Cadastro de novos usuários;
+- Login com e-mail e senha;
+- Autenticação baseada em JWT;
+- Armazenamento do token utilizando Expo SecureStore;
+- Recuperação e validação da sessão;
+- Proteção das telas que exigem autenticação;
+- Encerramento da sessão por logout.
+
+O `AuthContext` centraliza o estado de autenticação e disponibiliza informações do usuário autenticado.
+
+### 3.2. Home
+
+A Home apresenta as atividades cadastradas por todos os usuários.
+
+Cada atividade exibe:
+
+- Título e descrição;
+- Data e horário;
 - Local;
-- Estado de conclusão.
+- Status de conclusão;
+- Nome do usuário responsável pela criação;
+- Quantidade de interessados;
+- Nomes dos usuários interessados.
 
-O usuário pode marcar ou desmarcar uma atividade como concluída através do próprio card.
+Usuários autenticados também podem demonstrar interesse em atividades criadas por outras pessoas.
 
-A tela também respeita a preferência definida no perfil para mostrar ou ocultar atividades concluídas.
+Quando o usuário já demonstrou interesse, o aplicativo disponibiliza a opção **Retirar interesse**.
 
-Quando não existem atividades cadastradas, uma mensagem é apresentada ao usuário.
+O criador não pode registrar interesse na própria atividade.
 
-### Criar atividade
+### 3.3. Criar atividade
 
-A tela de criação permite cadastrar uma nova atividade informando:
+A tela de criação permite informar:
 
 - Nome da atividade;
+- Descrição opcional;
 - Data;
 - Horário;
-- Local.
+- Local da atividade.
 
-Todos os campos são obrigatórios.
+O formulário possui validação de campos obrigatórios e limites de caracteres.
 
-A seleção de data e horário é realizada utilizando o `DateTimePicker`.
+O local pode ser preenchido manualmente ou automaticamente utilizando a geolocalização do dispositivo.
 
-O campo **Local** permite duas formas de preenchimento:
+A criação é enviada à API e somente é considerada concluída após a confirmação do servidor.
 
-- **Manual:** o usuário informa o endereço ou nome do local.
-- **Automática:** o usuário utiliza o botão **Usar minha localização**, que acessa os serviços de localização do dispositivo para obter sua posição geográfica.
+### 3.4. Minhas atividades
 
-Na localização automática, a aplicação solicita permissão de acesso, captura latitude e longitude e utiliza geocodificação reversa para tentar converter as coordenadas em um endereço legível.
+Apresenta apenas as atividades criadas pelo usuário autenticado.
 
-Caso a localização automática não esteja disponível, o usuário poderá continuar preenchendo o campo manualmente.
+Permite:
 
-Antes da criação, os campos são validados. Caso algum campo obrigatório não tenha sido preenchido, a aplicação apresenta uma mensagem ao usuário.
+- Consultar atividades próprias;
+- Editar informações;
+- Marcar uma atividade como concluída;
+- Retornar uma atividade ao estado pendente;
+- Excluir atividades mediante confirmação.
 
-Após a validação, a nova atividade é adicionada ao estado compartilhado da aplicação e passa a ser disponibilizada para as demais telas.
+As permissões de alteração também são verificadas pelo backend.
 
-### Perfil
+### 3.5. Perfil
 
-A tela de perfil apresenta:
+A tela de Perfil permite:
 
-- Avatar do usuário;
-- Nome editável;
-- Quantidade de atividades pendentes;
-- Quantidade de atividades concluídas;
-- Configuração para mostrar ou ocultar atividades concluídas na Home.
+- Visualizar informações do usuário;
+- Consultar indicadores de atividades;
+- Mostrar ou ocultar atividades concluídas;
+- Selecionar o tema Claro, Escuro ou Automático;
+- Encerrar a sessão.
 
-As estatísticas são calculadas a partir da lista compartilhada de atividades e são atualizadas conforme o estado das atividades é alterado.
+As preferências são armazenadas localmente utilizando AsyncStorage.
 
----
+## 4. Consumo de APIs com Axios e JSON
 
-## Tecnologias utilizadas
+A comunicação entre o aplicativo e o backend é realizada utilizando **Axios**.
 
-- React Native;
-- Expo;
-- TypeScript;
-- Expo Router;
-- React Native Safe Area Context;
-- React Native Community DateTimePicker.
-- Expo Location (`expo-location`) — acesso aos serviços
-  de localização do dispositivo e geocodificação reversa.
+As operações HTTP estão organizadas em arquivos de serviço, evitando que as telas executem diretamente as requisições.
 
----
+### 4.1. Organização da comunicação
 
-## Estrutura do projeto
+O arquivo `src/services/api.ts` centraliza a configuração do cliente HTTP.
 
-O código-fonte está organizado dentro da pasta `src`, separando telas, componentes reutilizáveis, contexto, estilos e tipos.
+O arquivo `src/services/activities.service.ts` concentra as operações relacionadas às atividades.
 
-```text
-src/
-├── app/
-│   ├── _layout.tsx
-│   ├── create.tsx
-│   ├── index.tsx
-│   └── profile.tsx
-│
-├── components/
-│   ├── ActivityCard/
-│   │   ├── ActivityCard.tsx
-│   │   └── ActivityCard.styles.ts
-│   │
-│   ├── ActivityForm/
-│   │   ├── ActivityForm.tsx
-│   │   └── ActivityForm.styles.ts
-│   │
-│   └── ProfileStatCard/
-│       ├── ProfileStatCard.tsx
-│       └── ProfileStatCard.styles.ts
-│
-├── contexts/
-│   └── ActivitiesContext.tsx
-│
-├── styles/
-│   ├── create.styles.ts
-│   ├── index.styles.ts
-│   └── profile.styles.ts
-│
-└── types/
-    └── Activity.ts
-```
+O `ActivitiesContext` utiliza essas operações e disponibiliza os resultados para as telas.
 
----
-
-## Organização das pastas
-
-### `src/app`
-
-Contém as telas da aplicação e a configuração principal da navegação.
+Fluxo simplificado:
 
 ```text
-app/
-├── _layout.tsx
-├── create.tsx
-├── index.tsx
-└── profile.tsx
+Tela React Native
+       |
+       v
+ActivitiesContext
+       |
+       v
+activities.service.ts
+       |
+       v
+Axios + JSON
+       |
+       v
+API NestJS
+       |
+       v
+MySQL
 ```
 
-Os arquivos possuem as seguintes responsabilidades:
+### 4.2. Consulta de atividades
 
-- `_layout.tsx` — configura a navegação principal da aplicação;
-- `index.tsx` — implementa a tela Home;
-- `create.tsx` — implementa a tela de criação de atividades;
-- `profile.tsx` — implementa a tela de perfil.
+Exemplo de função utilizada para consultar todas as atividades:
 
-Como a pasta `app` é utilizada pelo Expo Router para representar as rotas da aplicação, os estilos específicos dessas telas foram mantidos separadamente em `src/styles`.
+```typescript
+export async function getAllActivities():
+  Promise<ApiActivity[]> {
 
----
-
-### `src/components`
-
-Contém os componentes reutilizáveis da aplicação.
-
-Cada componente possui sua própria pasta contendo o arquivo `.tsx` e seu respectivo arquivo `.styles.ts`.
-
-```text
-components/
-├── ActivityCard/
-│   ├── ActivityCard.tsx
-│   └── ActivityCard.styles.ts
-│
-├── ActivityForm/
-│   ├── ActivityForm.tsx
-│   └── ActivityForm.styles.ts
-│
-└── ProfileStatCard/
-    ├── ProfileStatCard.tsx
-    └── ProfileStatCard.styles.ts
-```
-
-Os componentes possuem as seguintes responsabilidades:
-
-- `ActivityCard` — representa visualmente uma atividade;
-- `ActivityForm` — contém o formulário utilizado para criar atividades;
-- `ProfileStatCard` — apresenta as estatísticas da tela de perfil.
-
----
-
-### `src/contexts`
-
-Contém os contextos utilizados para compartilhar informações entre diferentes partes da aplicação.
-
-```text
-contexts/
-└── ActivitiesContext.tsx
-```
-
-O `ActivitiesContext` é responsável pelo gerenciamento da lista de atividades e pela preferência de exibição das atividades concluídas.
-
----
-
-### `src/styles`
-
-Contém os arquivos responsáveis pela estilização das telas principais.
-
-```text
-styles/
-├── create.styles.ts
-├── index.styles.ts
-└── profile.styles.ts
-```
-
-Cada arquivo corresponde a uma tela:
-
-```text
-app/index.tsx
-    ↓
-styles/index.styles.ts
-
-app/create.tsx
-    ↓
-styles/create.styles.ts
-
-app/profile.tsx
-    ↓
-styles/profile.styles.ts
-```
-
----
-
-### `src/types`
-
-Contém as definições de tipos TypeScript utilizadas pela aplicação.
-
-```text
-types/
-└── Activity.ts
-```
-
-O arquivo `Activity.ts` define a estrutura utilizada para representar uma atividade.
-
----
-
-## Separação entre lógica, interface e estilização
-
-A organização do projeto busca separar a estilização dos arquivos responsáveis pela lógica e pela construção das interfaces.
-
-Nas telas, a estrutura segue o seguinte padrão:
-
-```text
-src/app/index.tsx
-src/styles/index.styles.ts
-```
-
-O arquivo `.tsx` contém a implementação da tela, enquanto o arquivo `.styles.ts` contém sua estilização.
-
-Nos componentes reutilizáveis, o componente e sua estilização permanecem agrupados na mesma pasta:
-
-```text
-src/components/ActivityCard/
-├── ActivityCard.tsx
-└── ActivityCard.styles.ts
-```
-
-Dessa forma, os arquivos `.tsx` concentram principalmente:
-
-- Estrutura JSX;
-- Props;
-- Estados;
-- Funções;
-- Eventos;
-- Comportamento dos componentes.
-
-Enquanto os arquivos `.styles.ts` concentram:
-
-- Cores;
-- Espaçamentos;
-- Bordas;
-- Dimensões;
-- Tipografia;
-- Alinhamento;
-- Propriedades de Flexbox.
-
-Essa separação melhora a legibilidade e facilita a manutenção dos arquivos.
-
----
-
-## Componentes funcionais
-
-Todas as telas e componentes da aplicação foram desenvolvidos utilizando componentes funcionais.
-
-Entre os principais componentes estão:
-
-```text
-HomeScreen
-CreateScreen
-ProfileScreen
-ActivityCard
-ActivityForm
-ProfileStatCard
-```
-
-Um exemplo é o `ProfileStatCard`:
-
-```tsx
-export default function ProfileStatCard({
-  value,
-  label,
-}: ProfileStatCardProps) {
-  return (
-    <View style={styles.card}>
-      <Text style={styles.value}>
-        {value}
-      </Text>
-
-      <Text style={styles.label}>
-        {label}
-      </Text>
-    </View>
+  const response = await api.get<ApiActivity[]>(
+    "/activities"
   );
+
+  return response.data;
 }
 ```
 
----
+A resposta é recebida em JSON e convertida para o formato utilizado nos componentes React Native.
 
-## Props
+Essa conversão ocorre em `activity.mapper.ts`, que transforma, por exemplo, valores de data e horário recebidos em formato ISO em objetos `Date`.
 
-Props são utilizadas para transmitir informações de um componente pai para um componente filho.
+### 4.3. Operações CRUD
 
-O componente `ProfileStatCard`, por exemplo, recebe:
+| Operação | Método HTTP | Endpoint |
+|---|---|---|
+| Listar atividades | GET | `/activities` |
+| Listar minhas atividades | GET | `/activities/my` |
+| Criar atividade | POST | `/activities` |
+| Editar atividade | PATCH | `/activities/:id` |
+| Alterar status | PATCH | `/activities/:id/status` |
+| Excluir atividade | DELETE | `/activities/:id` |
 
-```tsx
-type ProfileStatCardProps = {
-  value: number;
-  label: string;
-};
+Após uma operação bem-sucedida, o `ActivitiesContext` atualiza o estado da aplicação.
+
+### 4.4. Registro de interessados
+
+A Home também utiliza a API para permitir a interação entre usuários.
+
+Endpoints utilizados:
+
+```http
+POST /activities/:id/interests
+DELETE /activities/:id/interests/me
 ```
 
-Na tela de perfil, o mesmo componente pode ser reutilizado para apresentar informações diferentes:
+O primeiro registra interesse, enquanto o segundo remove o interesse do usuário autenticado.
 
-```tsx
-<ProfileStatCard
-  value={pendingCount}
-  label="Pendentes"
-/>
+O servidor utiliza o JWT para identificar quem realizou a operação.
 
-<ProfileStatCard
-  value={completedCount}
-  label="Concluídas"
-/>
-```
+O aplicativo atualiza a quantidade e os nomes dos interessados após a confirmação da API.
 
-O `ActivityCard` também utiliza Props:
+### 4.5. Tratamento de erros
 
-```tsx
-type ActivityCardProps = {
-  activity: Activity;
-  onToggleCompleted: () => void;
-};
-```
+As requisições são realizadas de maneira assíncrona, utilizando `async/await` e tratamento de exceções.
 
-Nesse caso, o componente recebe a atividade que deverá ser apresentada e uma função utilizada para alterar seu estado de conclusão.
+Em caso de falha, o aplicativo apresenta mensagens apropriadas ao usuário.
 
----
+As operações também possuem mecanismos para impedir requisições duplicadas durante o processamento.
 
-## State
+## 5. Persistência local com AsyncStorage
 
-O hook `useState` é utilizado para armazenar informações que podem mudar durante a execução da aplicação.
+O AsyncStorage é utilizado para armazenar preferências simples no dispositivo.
 
-No formulário de criação são utilizados estados para armazenar os dados informados pelo usuário:
+O armazenamento funciona com pares de chave e valor.
 
-```tsx
-const [activity, setActivity] = useState('');
-const [location, setLocation] = useState('');
-const [date, setDate] = useState<Date | null>(null);
-const [time, setTime] = useState<Date | null>(null);
-```
+No aplicativo, utilizamos AsyncStorage principalmente para o **Dark Mode** e para a preferência de exibição das atividades concluídas.
 
-Também são utilizados estados para controlar a exibição dos seletores de data e horário.
+### 5.1. Dark Mode
 
-Na tela de perfil, State é utilizado para controlar o nome do usuário e determinar se o campo de edição está sendo exibido.
+O aplicativo oferece três opções:
 
----
-
-## Context API
-
-Além dos estados locais, a aplicação utiliza a Context API para compartilhar informações entre diferentes telas.
-
-O `ActivitiesContext` mantém:
-
-- Lista de atividades;
-- Criação de novas atividades;
-- Alteração do estado de conclusão;
-- Preferência de exibição das atividades concluídas.
-
-O provider é aplicado sobre a navegação da aplicação:
-
-```tsx
-<ActivitiesProvider>
-  <NativeTabs>
-    ...
-  </NativeTabs>
-</ActivitiesProvider>
-```
-
-Dessa forma, as diferentes telas possuem acesso ao mesmo conjunto de dados.
-
-Uma atividade criada na tela **Criar**, por exemplo, pode ser apresentada na **Home** e contabilizada nas estatísticas do **Perfil**.
-
----
-
-## Modelo de atividade
-
-As atividades são representadas através do tipo `Activity`:
-
-```tsx
-export type Activity = {
-  id: string;
-  title: string;
-  date: Date;
-  time: Date;
-  location: string;
-  completed: boolean;
-};
-```
-
-Cada atividade possui:
-
-- `id` — identificador único;
-- `title` — nome da atividade;
-- `date` — data;
-- `time` — horário;
-- `location` — local;
-- `completed` — indica se a atividade foi concluída.
-
-Para criação de uma atividade também é utilizado o tipo:
-
-```tsx
-export type NewActivity = Omit<
-  Activity,
-  'id' | 'completed'
->;
-```
-
-O `id` e o estado `completed` não precisam ser informados pelo formulário, pois são definidos pela própria aplicação durante a criação da atividade.
-
----
-
-## Componentes do React Native
-
-A aplicação utiliza diferentes componentes fornecidos pelo React Native.
-
-### View
-
-Utilizado como contêiner para organizar os elementos da interface.
-
-### Text
-
-Utilizado para apresentar informações textuais.
-
-### Image
-
-Utilizado para apresentar o avatar na tela de perfil.
-
-### Pressable
-
-Utilizado para elementos interativos, como:
-
-- Botão Criar;
-- Botão Cancelar;
-- Botão Editar nome;
-- Botão Salvar;
-- Seleção de data;
-- Seleção de horário;
-- Alteração do estado de conclusão de uma atividade.
-
-### TextInput
-
-Utilizado nos campos do formulário e na edição do nome do usuário.
-
-### ScrollView
-
-Utilizado na tela de perfil para permitir a rolagem vertical do conteúdo.
-
-### Switch
-
-Utilizado para controlar a preferência de exibição das atividades concluídas.
-
-### FlatList
-
-Utilizado na Home para apresentar a lista de atividades.
-
----
-
-## StyleSheet
-
-A estilização da aplicação é realizada utilizando `StyleSheet`, recurso fornecido pelo React Native.
-
-Os estilos são definidos em arquivos específicos utilizando:
-
-```tsx
-import { StyleSheet } from 'react-native';
-
-export const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});
-```
-
-As telas importam seus estilos a partir da pasta `styles`.
-
-Exemplo:
-
-```tsx
-import { styles } from '../styles/index.styles';
-```
-
-Os componentes reutilizáveis importam o arquivo de estilo presente na própria pasta.
-
-Exemplo:
-
-```tsx
-import { styles } from './ActivityCard.styles';
-```
-
----
-
-## Flexbox
-
-Flexbox é utilizado para organizar e alinhar os elementos da interface.
-
-Um exemplo pode ser encontrado nos botões do formulário:
-
-```tsx
-actions: {
-  flexDirection: 'row',
-  justifyContent: 'flex-end',
-  gap: 12,
-},
-```
-
-Nesse caso, os botões são posicionados horizontalmente.
-
-Outro exemplo está na tela de perfil:
-
-```tsx
-stats: {
-  flexDirection: 'row',
-  gap: 12,
-},
-```
-
-Isso permite apresentar os cards de atividades pendentes e concluídas lado a lado.
-
-O projeto também utiliza propriedades como:
-
-```text
-flex
-flexDirection
-alignItems
-justifyContent
-gap
-```
-
-para organizar a interface.
-
----
-
-## FlatList
-
-A tela Home utiliza `FlatList` para renderizar as atividades cadastradas.
-
-```tsx
-<FlatList
-  data={visibleActivities}
-  keyExtractor={(item) => item.id}
-  renderItem={({ item }) => (
-    <ActivityCard
-      activity={item}
-      onToggleCompleted={() =>
-        toggleActivityCompleted(item.id)
-      }
-    />
-  )}
-/>
-```
-
-A propriedade `data` recebe as atividades que devem ser apresentadas.
-
-O `keyExtractor` utiliza o identificador único de cada atividade.
-
-O `renderItem` determina como cada atividade será renderizada, utilizando o componente `ActivityCard`.
-
----
-
-## Filtro de atividades concluídas
-
-A Home considera a preferência definida pelo usuário no Perfil.
-
-As atividades que serão apresentadas são determinadas por:
-
-```tsx
-const visibleActivities = showCompleted
-  ? activities
-  : activities.filter(
-      (activity) => !activity.completed
-    );
-```
-
-Quando `showCompleted` é verdadeiro, todas as atividades são apresentadas.
-
-Quando é falso, somente atividades que ainda não foram concluídas são enviadas para a `FlatList`.
-
----
-
-## Navegação
-
-A aplicação utiliza **Expo Router** para organizar a navegação entre as telas.
-
-A configuração principal está localizada em:
-
-```text
-src/app/_layout.tsx
-```
-
-A aplicação possui três rotas principais:
-
-```text
-index    → Home
-create   → Criar
-profile  → Perfil
-```
-
-A navegação principal utiliza abas através de `NativeTabs`.
-
-Exemplo:
-
-```tsx
-<NativeTabs.Trigger name="index">
-  <NativeTabs.Trigger.Label>
-    Home
-  </NativeTabs.Trigger.Label>
-
-  <NativeTabs.Trigger.Icon
-    sf="house.fill"
-    md="home"
-  />
-</NativeTabs.Trigger>
-```
-
-Dessa forma, o usuário pode alternar entre **Home**, **Criar** e **Perfil** através da barra de navegação.
-
----
-
-## Safe Area
-
-As telas utilizam `SafeAreaView` através do pacote:
-
-```text
-react-native-safe-area-context
-```
-
-Esse recurso ajuda a evitar que elementos da interface sejam apresentados em regiões reservadas pelo sistema operacional do dispositivo.
-
-Exemplo:
-
-```tsx
-<SafeAreaView style={styles.container}>
-  ...
-</SafeAreaView>
-```
-
----
-
-## Seleção de data e horário
-
-O formulário utiliza o componente `DateTimePicker` para permitir a seleção de data e horário.
-
-Para data:
-
-```tsx
-<DateTimePicker
-  value={date ?? new Date()}
-  mode="date"
-  display="default"
-/>
-```
-
-Para horário:
-
-```tsx
-<DateTimePicker
-  value={time ?? new Date()}
-  mode="time"
-  display="default"
-  is24Hour={true}
-/>
-```
-
-Os valores selecionados são armazenados no State do formulário.
-
----
-
-## Geolocalização e integração com hardware
-
-A aplicação utiliza a biblioteca **Expo Location (`expo-location`)** para acessar os serviços de localização do dispositivo móvel.
-
-Essa integração permite preencher automaticamente o campo **Local** durante o cadastro de uma atividade, utilizando a posição geográfica atual do usuário.
-
-### Funcionamento
-
-O processo de obtenção da localização segue estas etapas:
-
-1. O usuário pressiona o botão **Usar minha localização**.
-2. A aplicação verifica se os serviços de localização do dispositivo estão ativados.
-3. É solicitada a permissão de acesso à localização em primeiro plano (*foreground*).
-4. Após a autorização, a aplicação tenta obter a posição atual do dispositivo.
-5. As coordenadas de latitude e longitude são capturadas.
-6. A aplicação utiliza geocodificação reversa (*reverse geocoding*) para tentar identificar um endereço.
-7. O campo **Local** é preenchido automaticamente.
-
-A obtenção da posição utiliza `Location.Accuracy.Balanced`, buscando equilibrar precisão e consumo de bateria.
-
-### Principais APIs utilizadas
-
-| API | Finalidade |
+| Modo | Comportamento |
 |---|---|
-| `hasServicesEnabledAsync()` | Verificar se os serviços de localização estão ativados |
-| `requestForegroundPermissionsAsync()` | Solicitar permissão de localização |
-| `getCurrentPositionAsync()` | Obter a posição atual do dispositivo |
-| `getLastKnownPositionAsync()` | Recuperar uma localização recente quando necessário |
-| `reverseGeocodeAsync()` | Converter coordenadas em endereço |
+| Claro | Utiliza a paleta clara |
+| Escuro | Utiliza a paleta escura |
+| Automático | Acompanha a preferência do sistema operacional |
 
-### Tratamento de erros
+O gerenciamento ocorre em `src/contexts/ThemeContext.tsx`.
 
-A implementação contempla diferentes situações que podem ocorrer durante a obtenção da localização.
-
-| Situação | Tratamento |
-|---|---|
-| Serviços de localização desativados | Exibe uma mensagem solicitando a ativação |
-| Permissão negada | Informa a necessidade da permissão e oferece acesso às configurações |
-| Falha na obtenção da posição atual | Tenta recuperar a última posição conhecida |
-| Tempo de espera excedido | Aplica timeout de 10 segundos à espera pela posição atual |
-| Localização anterior desatualizada | Rejeita posições com mais de 60 segundos |
-| Falha na geocodificação reversa | Preenche o campo com latitude e longitude |
-| Solicitação cancelada ou invalidada | Impede que resultados antigos sobrescrevam o campo |
-| Falha geral de localização | Exibe mensagem e permite preenchimento manual |
-
-A consulta da última posição conhecida possui limite de espera de 3 segundos, enquanto a geocodificação reversa possui limite de 5 segundos.
-
-Os limites de espera não garantem o cancelamento das operações nativas, mas permitem que a aplicação deixe de aguardá-las.
-
-### Permissões e privacidade
-
-A aplicação solicita acesso à localização somente quando o usuário aciona a funcionalidade de preenchimento automático.
-
-É utilizada apenas a permissão de localização em primeiro plano (*foreground*). Não há rastreamento contínuo nem solicitação de localização em segundo plano.
-
-A localização obtida é utilizada para preencher o campo **Local**. A atividade armazena esse valor como texto, sem necessidade de modificar o modelo de dados existente.
-
-### Limitações
-
-- A precisão depende dos serviços de localização e das condições do dispositivo.
-- O endereço retornado pode ser aproximado ou incompleto.
-- A geocodificação reversa pode não conseguir identificar um endereço.
-- A última posição conhecida pode não representar a localização exata no momento do cadastro.
-- A funcionalidade não utiliza mapas interativos nem monitoramento contínuo.
-
-### Biblioteca utilizada
-
-A dependência pode ser instalada com:
-
-```bash
-npx expo install expo-location
-```
-
-Documentação oficial: https://docs.expo.dev/versions/v57.0.0/sdk/location/
-
-## Validação do formulário
-
-Antes de criar uma atividade, o formulário verifica se todos os campos obrigatórios foram preenchidos.
+Quando o usuário escolhe um tema, o contexto atualiza imediatamente a interface e salva a preferência.
 
 Exemplo:
 
-```tsx
-if (!activity.trim()) {
-  Alert.alert(
-    'Campo obrigatório',
-    'Informe o nome da atividade.'
-  );
-
-  return;
-}
+```typescript
+await AsyncStorage.setItem(
+  "@projeto-mobile:theme",
+  "dark"
+);
 ```
 
-Validações semelhantes são realizadas para:
+Na inicialização, a preferência é recuperada:
 
-- Data;
-- Horário;
-- Local.
+```typescript
+const storedMode = await AsyncStorage.getItem(
+  "@projeto-mobile:theme"
+);
+```
 
-Somente após todas as validações a atividade é adicionada ao contexto.
+O `ThemeContext` fornece as cores apropriadas para os componentes, permitindo alternar entre os temas.
 
----
+### 5.2. Preferência de atividades concluídas
 
-## Fluxo de dados
+A opção de mostrar ou ocultar atividades concluídas também é persistida.
 
-O `ActivitiesContext` funciona como ponto central para o compartilhamento das informações.
+Para separar as preferências de diferentes usuários, a chave inclui o ID da conta:
+
+```typescript
+const key =
+  `@projeto-mobile:showCompleted:${currentUserId}`;
+```
+
+Dessa forma, cada usuário mantém suas próprias configurações de exibição.
+
+### 5.3. Benefícios
+
+- Preferências preservadas após reiniciar o aplicativo;
+- Atualização imediata da interface;
+- Funcionamento independente da API;
+- Armazenamento simples, adequado a configurações individuais.
+
+## 6. Persistência local com SQLite
+
+O SQLite foi implementado como **cache local de atividades para leitura offline**.
+
+O MySQL continua sendo o banco oficial do sistema.
+
+O SQLite mantém uma cópia das informações previamente recebidas da API, permitindo que o usuário consulte atividades quando houver uma falha de conexão com o servidor.
+
+A implementação está concentrada em:
 
 ```text
-                ┌─────────────────────┐
-                │        Criar        │
-                │    ActivityForm     │
-                └──────────┬──────────┘
-                           │
-                           │ addActivity()
-                           ▼
-                ┌─────────────────────┐
-                │  ActivitiesContext  │
-                └──────────┬──────────┘
-                           │
-                ┌──────────┴──────────┐
-                │                     │
-                ▼                     ▼
-        ┌───────────────┐     ┌───────────────┐
-        │     Home      │     │    Perfil     │
-        │   FlatList    │     │ Estatísticas  │
-        └───────┬───────┘     └───────────────┘
-                │
-                ▼
-        ┌───────────────┐
-        │ ActivityCard  │
-        └───────────────┘
+src/database/activities.cache.ts
 ```
 
-O fluxo principal ocorre da seguinte maneira:
+### 6.1. Funcionamento do cache
 
-1. O usuário preenche o `ActivityForm`;
-2. O formulário executa `addActivity()`;
-3. A atividade é armazenada no `ActivitiesContext`;
-4. A Home recebe a lista atualizada;
-5. A `FlatList` renderiza um `ActivityCard` para cada atividade;
-6. O Perfil utiliza a mesma lista para calcular as estatísticas.
+Quando o aplicativo consegue consultar a API:
 
----
+1. O `ActivitiesContext` solicita as atividades ao servidor.
+2. A resposta JSON é convertida em objetos utilizados pelo aplicativo.
+3. Os dados são apresentados na interface.
+4. Uma cópia das atividades é salva no SQLite.
 
-## Como executar o projeto
+Quando a API fica indisponível:
+
+1. O aplicativo identifica a falha de comunicação.
+2. Consulta o cache SQLite da conta autenticada.
+3. Recupera as atividades previamente armazenadas.
+4. Exibe os registros na Home ou em Minhas atividades.
+5. Informa que os dados são locais e podem estar desatualizados.
+
+### 6.2. Estrutura do banco local
+
+O cache possui duas tabelas principais.
+
+| Tabela | Finalidade |
+|---|---|
+| `cached_activities` | Armazena cópias das atividades |
+| `cache_metadata` | Armazena a data da última sincronização |
+
+Entre as informações armazenadas estão:
+
+- ID da atividade;
+- ID e nome do criador;
+- Título e descrição;
+- Data e horário;
+- Local;
+- Status;
+- Nomes e quantidade de interessados;
+- Informação de interesse do usuário autenticado.
+
+As informações são separadas pelo ID da conta e pelo escopo da consulta.
+
+São utilizados os escopos `all`, para a Home, e `mine`, para Minhas atividades.
+
+### 6.3. Gravação e consultas
+
+O banco é aberto utilizando `openDatabaseAsync`, da biblioteca `expo-sqlite`.
+
+As operações utilizam consultas SQL parametrizadas.
+
+Na substituição de uma lista completa, são utilizadas transações para evitar gravações parcialmente concluídas.
+
+As informações dos interessados são armazenadas em formato JSON no cache e reconstruídas quando os registros são recuperados.
+
+### 6.4. Atualização do cache após alterações
+
+Quando uma operação online é confirmada pela API, a cópia local também é atualizada.
+
+Exemplos:
+
+- Criar uma atividade: adiciona o registro ao cache;
+- Editar uma atividade: atualiza o registro local;
+- Alterar status: atualiza o estado armazenado;
+- Excluir uma atividade: remove o registro;
+- Demonstrar ou retirar interesse: atualiza os interessados.
+
+O SQLite não é utilizado como fonte de escrita quando o servidor está indisponível.
+
+### 6.5. Limitações do modo offline
+
+O modo offline é **somente leitura**.
+
+Enquanto o aplicativo utiliza dados do SQLite, ficam indisponíveis:
+
+- Criação de atividades;
+- Edição;
+- Exclusão;
+- Alteração de status;
+- Registro e remoção de interesses.
+
+O acesso ao cache não substitui a autenticação.
+
+Respostas HTTP explícitas de acesso negado, como `401` e `403`, não são utilizadas para liberar a leitura offline.
+
+**Observação:** a leitura offline foi implementada para uma sessão já autenticada e aberta. A inicialização do aplicativo completamente offline após encerrá-lo não é garantida, pois a validação inicial da sessão depende do backend.
+
+Não existe fila de operações pendentes para sincronização posterior.
+
+## 7. Diferenças entre AsyncStorage e SQLite
+
+| Característica | AsyncStorage | SQLite |
+|---|---|---|
+| Modelo de armazenamento | Chave e valor | Tabelas e registros |
+| Principal utilização | Preferências | Cache de atividades |
+| Consultas SQL | Não | Sim |
+| Dark Mode | Sim | Não |
+| Filtro de concluídas | Sim | Não |
+| Leitura offline de atividades | Não | Sim |
+| Dependência do servidor | Não | Cache criado a partir da API |
+
+A utilização das duas tecnologias permite armazenar cada tipo de informação de maneira adequada.
+
+## 8. Geolocalização com Expo Location
+
+A geolocalização foi implementada para facilitar o preenchimento do local de uma atividade.
+
+O recurso está disponível nos formulários de criação e edição.
+
+A biblioteca utilizada é `expo-location`.
+
+### 8.1. Verificação dos serviços
+
+Antes de solicitar a posição, o aplicativo verifica se os serviços de localização estão ativados:
+
+```typescript
+const enabled =
+  await Location.hasServicesEnabledAsync();
+```
+
+Caso estejam desativados, o usuário recebe uma mensagem orientando a ativá-los.
+
+### 8.2. Solicitação de permissão
+
+O aplicativo solicita acesso à localização em primeiro plano:
+
+```typescript
+const permission =
+  await Location.requestForegroundPermissionsAsync();
+```
+
+Se a permissão não for concedida, o preenchimento automático não é realizado.
+
+O usuário continua podendo digitar o local manualmente.
+
+### 8.3. Obtenção das coordenadas
+
+Após a autorização, o aplicativo tenta obter a localização atual:
+
+```typescript
+const position =
+  await Location.getCurrentPositionAsync({
+    accuracy: Location.Accuracy.Balanced,
+  });
+```
+
+O retorno contém informações como latitude e longitude.
+
+### 8.4. Geocodificação reversa
+
+Para transformar coordenadas em um endereço legível, utilizamos:
+
+```typescript
+const addresses =
+  await Location.reverseGeocodeAsync({
+    latitude,
+    longitude,
+  });
+```
+
+As informações retornadas são organizadas para preencher o campo Local, utilizando rua, número, bairro, cidade e região quando disponíveis.
+
+### 8.5. Tratamento de falhas
+
+Foram implementados mecanismos para lidar com problemas de localização:
+
+- Verificação de GPS desativado;
+- Tratamento de permissão negada;
+- Tempo limite de dez segundos para obter a posição atual;
+- Tentativa de recuperar a última localização conhecida;
+- Aceitação de posição anterior com até sessenta segundos;
+- Tempo limite de cinco segundos para conversão em endereço;
+- Utilização das coordenadas quando o endereço não é identificado;
+- Possibilidade de informar o local manualmente.
+
+Também utilizamos um identificador de solicitação para impedir que uma resposta atrasada do GPS sobrescreva um endereço digitado pelo usuário.
+
+## 9. Arquitetura do aplicativo
+
+```text
+React Native + Expo
+        |
+        +-- Expo Router
+        |      |
+        |      +-- Home
+        |      +-- Criar
+        |      +-- Minhas Atividades
+        |      +-- Perfil
+        |
+        +-- Context API
+        |      |
+        |      +-- AuthContext
+        |      +-- ActivitiesContext
+        |      +-- ThemeContext
+        |
+        +-- Services
+        |      |
+        |      +-- Axios + JSON
+        |      +-- API NestJS
+        |
+        +-- Persistência local
+        |      |
+        |      +-- AsyncStorage
+        |      +-- SQLite
+        |      +-- SecureStore
+        |
+        +-- Recursos nativos
+               |
+               +-- Expo Location
+               +-- DateTimePicker
+```
+
+## 10. Estrutura de pastas
+
+```text
+projeto-mobile/
+├── assets/
+├── src/
+│   ├── app/
+│   │   ├── _layout.tsx
+│   │   ├── login.tsx
+│   │   ├── register.tsx
+│   │   └── (tabs)/
+│   │       ├── _layout.tsx
+│   │       ├── index.tsx
+│   │       ├── create.tsx
+│   │       ├── my-activities.tsx
+│   │       └── profile.tsx
+│   ├── components/
+│   │   ├── ActivityCard/
+│   │   ├── ActivityForm/
+│   │   ├── EditActivityModal/
+│   │   └── ProfileStatCard/
+│   ├── contexts/
+│   │   ├── AuthContext.tsx
+│   │   ├── ActivitiesContext.tsx
+│   │   └── ThemeContext.tsx
+│   ├── database/
+│   │   └── activities.cache.ts
+│   ├── services/
+│   │   ├── api.ts
+│   │   ├── activities.service.ts
+│   │   ├── activity.mapper.ts
+│   │   └── auth.service.ts
+│   ├── styles/
+│   ├── theme/
+│   └── types/
+├── app.json
+├── package.json
+└── README.md
+```
+
+## 11. Instalação e execução
 
 ### Pré-requisitos
 
-Para executar o projeto é necessário possuir:
+- Node.js e npm;
+- Expo Go compatível com o Expo SDK 57;
+- Dispositivo Android/iOS ou emulador compatível;
+- API NestJS configurada e em execução;
+- MySQL disponível para o backend.
 
-- Node.js;
-- npm;
-- Expo Go instalado no dispositivo móvel.
-
-### 1. Clonar o repositório
-
-```bash
-git clone <URL-DO-REPOSITORIO>
-```
-
-### 2. Acessar a pasta do projeto
+### 11.1. Clonar o repositório
 
 ```bash
+git clone https://github.com/douchasdev/projeto-mobile.git
 cd projeto-mobile
 ```
 
-### 3. Instalar as dependências
+### 11.2. Instalar dependências
 
 ```bash
 npm install
 ```
 
-### 4. Iniciar o projeto
+### 11.3. Configurar a API
 
-Execute:
+Verifique a configuração da URL da API em:
 
-```bash
-npx expo start
+```text
+src/services/api.ts
 ```
 
-ou:
+Para utilizar um celular físico, informe o endereço IP local do computador que executa o backend.
 
-```bash
-npm start
+Exemplo:
+
+```text
+http://192.168.1.100:3000
 ```
 
-### 5. Executar no dispositivo
+Substitua pelo IP real da máquina.
 
-Com o **Expo Go** instalado no dispositivo móvel, utilize o QR Code apresentado pelo Expo para abrir a aplicação.
+Em um celular, `localhost` representa o próprio aparelho, não o computador.
 
----
+O celular e o computador devem ter conectividade de rede, e a porta do servidor deve estar acessível.
 
-## Requisitos contemplados
+### 11.4. Iniciar o backend
 
-| Requisito | Implementação no projeto |
-|---|---|
-| React Native com Expo | Base tecnológica da aplicação |
-| Execução no Expo Go | Projeto desenvolvido utilizando o ambiente Expo |
-| Estrutura organizada | Separação em `app`, `components`, `contexts`, `styles` e `types` |
-| Componentes funcionais | Utilizados nas telas e componentes reutilizáveis |
-| Props | Utilizadas em `ActivityCard` e `ProfileStatCard` |
-| State | Utilizado no formulário, perfil e contexto |
-| `View` | Organização dos elementos da interface |
-| `Text` | Apresentação das informações |
-| `Image` | Avatar do perfil |
-| `Pressable` | Botões, seletores e conclusão de atividades |
-| `ScrollView` | Utilizado na tela Perfil |
-| `TextInput` | Formulário e edição do nome |
-| `Switch` | Preferência de exibição das atividades concluídas |
-| StyleSheet | Estilos separados em arquivos `.styles.ts` |
-| Flexbox | Organização e alinhamento dos elementos |
-| FlatList | Listagem das atividades na Home |
-| Navegação | Expo Router com navegação por abas |
-| Interface mobile | Safe Area, componentes interativos e organização responsiva |
+No repositório da API:
 
----
+```bash
+npm run start:dev
+```
 
-## Persistência dos dados
+### 11.5. Iniciar o aplicativo
 
-Atualmente, as atividades e preferências são armazenadas no estado da aplicação através do `ActivitiesContext`.
+No repositório do frontend:
 
-Isso significa que os dados não possuem persistência permanente e podem ser perdidos quando a aplicação é encerrada ou recarregada.
+```bash
+npx expo start --clear
+```
 
-O nome editado no Perfil também é mantido apenas no estado local da tela.
+Abra o projeto utilizando o Expo Go ou um emulador compatível.
 
-Uma possível evolução do projeto seria utilizar armazenamento local, como **AsyncStorage**, para manter essas informações entre diferentes execuções da aplicação.
+## 12. Verificação e testes
 
----
+Para verificar os tipos TypeScript:
 
-## Possíveis melhorias futuras
+```bash
+npx tsc --noEmit
+```
 
-Algumas funcionalidades que podem ser adicionadas futuramente são:
+### Roteiro de testes
 
-- Persistência local utilizando AsyncStorage;
-- Compartilhamento de atividade com outros usuarios;
+1. Cadastrar dois usuários e realizar login;
+2. Criar uma atividade com o primeiro usuário;
+3. Consultar a atividade na Home com a segunda conta;
+4. Verificar o nome do criador;
+5. Demonstrar interesse e verificar a lista de interessados;
+6. Retirar o interesse;
+7. Editar, concluir e excluir atividades próprias;
+8. Alternar entre temas Claro, Escuro e Automático;
+9. Reiniciar o aplicativo e verificar a persistência do tema;
+10. Alterar e recuperar o filtro de atividades concluídas;
+11. Utilizar o GPS para preencher a localização;
+12. Sincronizar as atividades com o servidor disponível;
+13. Desligar o backend sem encerrar a sessão do aplicativo;
+14. Atualizar a Home e verificar a leitura pelo SQLite;
+15. Religar o backend e atualizar as atividades novamente.
 
----
+## 13. Limitações conhecidas
 
-## Autor
+- A criação e a alteração de atividades dependem de conexão com a API.
+- O cache SQLite funciona somente para leitura offline.
+- A inicialização completamente offline após fechar o aplicativo não foi implementada.
+- Dados armazenados no SQLite podem estar desatualizados.
+- O SQLite não oferece criptografia automática dos registros nesta implementação.
+- Os seletores nativos de data e horário podem seguir o tema do sistema ou do Expo Go.
+- Não existe confirmação de presença ou limite de vagas para interessados.
+- Captura de fotos e geração de imagens de treino não fazem parte da versão atual.
 
-**Douglas Rezende Chagas**
+## 14. Considerações finais
 
-Projeto desenvolvido como atividade acadêmica utilizando **React Native**, **Expo** e **TypeScript**.
+O projeto demonstra a integração de diferentes recursos utilizados no desenvolvimento mobile.
+
+O **Axios** permite a comunicação com a API, o **AsyncStorage** mantém preferências locais, o **SQLite** fornece leitura de dados previamente sincronizados e o **Expo Location** permite utilizar a geolocalização do dispositivo.
+
+Essas tecnologias foram integradas a uma aplicação com autenticação, CRUD de atividades, gerenciamento de estado, Dark Mode e interação entre usuários.
+
+## Backend
+
+O backend está disponível em:
+
+https://github.com/douchasdev/projeto-mobile-api
