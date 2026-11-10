@@ -30,14 +30,14 @@ export default function HomeScreen() {
     loading,
     refreshing,
     error,
+    usingOfflineCache,
+    cachedAt,
     refreshActivities,
   } = useActivities();
 
   useFocusEffect(
     useCallback(() => {
-      void refreshActivities().catch(() => {
-        // O contexto registra o erro.
-      });
+      void refreshActivities().catch(() => {});
     }, [refreshActivities])
   );
 
@@ -48,9 +48,7 @@ export default function HomeScreen() {
       );
 
   function handleRefresh() {
-    void refreshActivities().catch(() => {
-      // O erro será exibido na tela.
-    });
+    void refreshActivities().catch(() => {});
   }
 
   return (
@@ -80,6 +78,73 @@ export default function HomeScreen() {
               inclusive as suas.
             </Text>
 
+            {usingOfflineCache && (
+              <View
+                style={{
+                  marginTop: 16,
+                  padding: 14,
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.surfaceAlt,
+                  gap: 6,
+                }}
+              >
+                <Text
+                  style={{
+                    color: colors.text,
+                    fontWeight: "700",
+                  }}
+                >
+                  Dados locais
+                </Text>
+
+                <Text
+                  style={{
+                    color: colors.textSecondary,
+                    fontSize: 13,
+                  }}
+                >
+                  A API está indisponível para uma
+                  ou mais listas. Os dados foram
+                  recuperados do SQLite e podem
+                  estar desatualizados.
+                </Text>
+
+                {cachedAt && (
+                  <Text
+                    style={{
+                      color: colors.textSecondary,
+                      fontSize: 12,
+                    }}
+                  >
+                    Última sincronização:{" "}
+                    {new Date(
+                      cachedAt
+                    ).toLocaleString("pt-BR")}
+                  </Text>
+                )}
+
+                <Pressable
+                  onPress={handleRefresh}
+                  accessibilityRole="button"
+                  style={{
+                    alignSelf: "flex-start",
+                    paddingVertical: 8,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: colors.primary,
+                      fontWeight: "600",
+                    }}
+                  >
+                    Tentar conectar novamente
+                  </Text>
+                </Pressable>
+              </View>
+            )}
+
             {error && (
               <View style={styles.errorBox}>
                 <Text style={styles.errorText}>
@@ -89,7 +154,6 @@ export default function HomeScreen() {
                 <Pressable
                   style={styles.retryButton}
                   onPress={handleRefresh}
-                  accessibilityRole="button"
                 >
                   <Text style={styles.retryText}>
                     Tentar novamente

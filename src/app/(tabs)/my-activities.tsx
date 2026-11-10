@@ -42,6 +42,8 @@ export default function MyActivitiesScreen() {
     loading,
     refreshing,
     error,
+    usingOfflineCache,
+    cachedAt,
     refreshActivities,
     toggleActivityCompleted,
     deleteActivity,
@@ -59,9 +61,7 @@ export default function MyActivitiesScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      void refreshActivities().catch(() => {
-        // O contexto registra o erro.
-      });
+      void refreshActivities().catch(() => {});
     }, [refreshActivities])
   );
 
@@ -72,13 +72,14 @@ export default function MyActivitiesScreen() {
       );
 
   function handleRefresh() {
-    void refreshActivities().catch(() => {
-      // O erro será exibido na interface.
-    });
+    void refreshActivities().catch(() => {});
   }
 
   async function handleToggle(id: string) {
-    if (processingRef.current) {
+    if (
+      processingRef.current ||
+      usingOfflineCache
+    ) {
       return;
     }
 
@@ -87,10 +88,10 @@ export default function MyActivitiesScreen() {
 
     try {
       await toggleActivityCompleted(id);
-    } catch (error: unknown) {
+    } catch (requestError: unknown) {
       Alert.alert(
         "Erro ao alterar status",
-        getApiErrorMessage(error)
+        getApiErrorMessage(requestError)
       );
     } finally {
       processingRef.current = false;
@@ -99,7 +100,10 @@ export default function MyActivitiesScreen() {
   }
 
   async function handleDelete(id: string) {
-    if (processingRef.current) {
+    if (
+      processingRef.current ||
+      usingOfflineCache
+    ) {
       return;
     }
 
@@ -115,10 +119,10 @@ export default function MyActivitiesScreen() {
         "Sucesso",
         "Atividade excluída com sucesso."
       );
-    } catch (error: unknown) {
+    } catch (requestError: unknown) {
       Alert.alert(
         "Erro ao excluir",
-        getApiErrorMessage(error)
+        getApiErrorMessage(requestError)
       );
     } finally {
       processingRef.current = false;
@@ -127,7 +131,10 @@ export default function MyActivitiesScreen() {
   }
 
   function confirmDelete(activity: Activity) {
-    if (processingRef.current) {
+    if (
+      processingRef.current ||
+      usingOfflineCache
+    ) {
       return;
     }
 
@@ -161,40 +168,52 @@ export default function MyActivitiesScreen() {
           <View style={styles.activityContainer}>
             <ActivityCard
               activity={item}
-              onToggleCompleted={() => {
-                void handleToggle(item.id);
-              }}
-              onEdit={() => {
-                if (!processingRef.current) {
-                  setEditingActivity(item);
-                }
-              }}
+              onToggleCompleted={
+                usingOfflineCache
+                  ? undefined
+                  : () => {
+                      void handleToggle(item.id);
+                    }
+              }
+              onEdit={
+                usingOfflineCache
+                  ? undefined
+                  : () => {
+                      if (!processingRef.current) {
+                        setEditingActivity(item);
+                      }
+                    }
+              }
             />
 
-            <Pressable
-              onPress={() => confirmDelete(item)}
-              disabled={processingId !== null}
-              accessibilityRole="button"
-              accessibilityLabel={`Excluir ${item.title}`}
-              style={[
-                styles.deleteButton,
-                processingId !== null &&
-                  styles.deleteButtonDisabled,
-              ]}
-            >
-              {processingId === item.id ? (
-                <ActivityIndicator
-                  size="small"
-                  color={colors.danger}
-                />
-              ) : (
-                <Text
-                  style={styles.deleteButtonText}
-                >
-                  Excluir atividade
-                </Text>
-              )}
-            </Pressable>
+            {!usingOfflineCache && (
+              <Pressable
+                onPress={() =>
+                  confirmDelete(item)
+                }
+                disabled={processingId !== null}
+                accessibilityRole="button"
+                accessibilityLabel={`Excluir ${item.title}`}
+                style={[
+                  styles.deleteButton,
+                  processingId !== null &&
+                    styles.deleteButtonDisabled,
+                ]}
+              >
+                {processingId === item.id ? (
+                  <ActivityIndicator
+                    size="small"
+                    color={colors.danger}
+                  />
+                ) : (
+                  <Text
+                    style={styles.deleteButtonText}
+                  >
+                    Excluir atividade
+                  </Text>
+                )}
+              </Pressable>
+            )}
           </View>
         )}
         contentContainerStyle={[
@@ -213,6 +232,72 @@ export default function MyActivitiesScreen() {
               as atividades que você criou.
             </Text>
 
+            {usingOfflineCache && (
+              <View
+                style={{
+                  marginTop: 16,
+                  padding: 14,
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.surfaceAlt,
+                  gap: 6,
+                }}
+              >
+                <Text
+                  style={{
+                    color: colors.text,
+                    fontWeight: "700",
+                  }}
+                >
+                  Modo de leitura offline
+                </Text>
+
+                <Text
+                  style={{
+                    fontSize: 13,
+                    color: colors.textSecondary,
+                  }}
+                >
+                  Atividades recuperadas do SQLite.
+                  A edição, a conclusão e a
+                  exclusão estão indisponíveis
+                  enquanto usamos dados locais.
+                </Text>
+
+                {cachedAt && (
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: colors.textSecondary,
+                    }}
+                  >
+                    Última sincronização:{" "}
+                    {new Date(
+                      cachedAt
+                    ).toLocaleString("pt-BR")}
+                  </Text>
+                )}
+
+                <Pressable
+                  onPress={handleRefresh}
+                  style={{
+                    alignSelf: "flex-start",
+                    paddingVertical: 8,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: colors.primary,
+                      fontWeight: "600",
+                    }}
+                  >
+                    Tentar conectar novamente
+                  </Text>
+                </Pressable>
+              </View>
+            )}
+
             {error && (
               <View style={styles.errorBox}>
                 <Text style={styles.errorText}>
@@ -222,7 +307,6 @@ export default function MyActivitiesScreen() {
                 <Pressable
                   onPress={handleRefresh}
                   style={styles.retryButton}
-                  accessibilityRole="button"
                 >
                   <Text style={styles.retryText}>
                     Tentar novamente
