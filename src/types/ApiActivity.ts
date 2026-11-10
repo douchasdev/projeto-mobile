@@ -1,4 +1,6 @@
 
+import type { ActivityUser } from "./Activity";
+
 export type ApiActivity = {
   id: string;
   title: string;
@@ -10,10 +12,11 @@ export type ApiActivity = {
   createdAt: string;
   updatedAt: string;
 
-  owner: {
-    id: string;
-    name: string;
-  };
+  owner: ActivityUser;
+
+  interestCount: number;
+  interestedUsers: ActivityUser[];
+  hasInterest: boolean;
 };
 
 export type CreateActivityPayload = {

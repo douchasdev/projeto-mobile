@@ -1,7 +1,10 @@
 
 import * as SQLite from "expo-sqlite";
 
-import type { Activity } from "../types/Activity";
+import type {
+  Activity,
+  ActivityUser,
+} from "../types/Activity";
 
 const DATABASE_NAME = "activities-cache.db";
 
@@ -10,15 +13,23 @@ export type CacheScope = "all" | "mine";
 type CachedActivityRow = {
   activity_id: string;
   owner_id: string;
+  owner_name: string;
   title: string;
   description: string | null;
   scheduled_at: string;
   location: string;
   completed: number;
+  interested_users_json: string;
+  interest_count: number;
+  has_interest: number;
 };
 
 type CacheMetadataRow = {
   synced_at: string;
+};
+
+type ColumnInfoRow = {
+  name: string;
 };
 
 export type CachedActivities = {
@@ -26,12 +37,14 @@ export type CachedActivities = {
   syncedAt: string;
 };
 
+// ==================================================
+// CONEXÃO E FILA DE ESCRITAS
+// ==================================================
+
 let databasePromise:
   | Promise<SQLite.SQLiteDatabase>
   | null = null;
 
-// Serializa operações de escrita para evitar
-// conflitos entre atualizações do cache.
 let writeQueue: Promise<void> = Promise.resolve();
 
 function enqueueWrite(
@@ -47,24 +60,51 @@ function enqueueWrite(
   return next;
 }
 
-// Converte a atividade do React Native
-// para os parâmetros que serão armazenados.
-function getScheduledAt(activity: Activity): string {
-  const date = activity.date;
-  const time = activity.time;
+// ==================================================
+// CONVERSÕES
+// ==================================================
 
+function getScheduledAt(
+  activity: Activity
+): string {
   return new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate(),
-    time.getHours(),
-    time.getMinutes(),
+    activity.date.getFullYear(),
+    activity.date.getMonth(),
+    activity.date.getDate(),
+    activity.time.getHours(),
+    activity.time.getMinutes(),
     0,
     0
   ).toISOString();
 }
 
-// Reconstrói os objetos Date para os componentes.
+function parseInterestedUsers(
+  value: string
+): ActivityUser[] {
+  try {
+    const parsed: unknown = JSON.parse(value);
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.filter(
+      (item): item is ActivityUser => {
+        return (
+          typeof item === "object" &&
+          item !== null &&
+          "id" in item &&
+          typeof item.id === "string" &&
+          "name" in item &&
+          typeof item.name === "string"
+        );
+      }
+    );
+  } catch {
+    return [];
+  }
+}
+
 function fromCacheRow(
   row: CachedActivityRow
 ): Activity {
@@ -72,17 +112,39 @@ function fromCacheRow(
     row.scheduled_at
   );
 
+  const interestedUsers = parseInterestedUsers(
+    row.interested_users_json
+  );
+
   return {
     id: row.activity_id,
     ownerId: row.owner_id,
+
+    owner: {
+      id: row.owner_id,
+      name:
+        row.owner_name ||
+        "Criador não informado",
+    },
+
     title: row.title,
     description: row.description ?? "",
+
     date: new Date(scheduledAt),
     time: new Date(scheduledAt),
+
     location: row.location,
     completed: row.completed === 1,
+
+    interestedUsers,
+    interestCount: row.interest_count,
+    hasInterest: row.has_interest === 1,
   };
 }
+
+// ==================================================
+// INICIALIZAÇÃO E MIGRAÇÃO
+// ==================================================
 
 async function initializeDatabase() {
   const db = await SQLite.openDatabaseAsync(
@@ -97,11 +159,15 @@ async function initializeDatabase() {
       scope TEXT NOT NULL,
       activity_id TEXT NOT NULL,
       owner_id TEXT NOT NULL,
+      owner_name TEXT NOT NULL DEFAULT '',
       title TEXT NOT NULL,
       description TEXT,
       scheduled_at TEXT NOT NULL,
       location TEXT NOT NULL,
       completed INTEGER NOT NULL DEFAULT 0,
+      interested_users_json TEXT NOT NULL DEFAULT '[]',
+      interest_count INTEGER NOT NULL DEFAULT 0,
+      has_interest INTEGER NOT NULL DEFAULT 0,
 
       PRIMARY KEY (
         account_id,
@@ -120,31 +186,88 @@ async function initializeDatabase() {
 
     CREATE INDEX IF NOT EXISTS
       idx_cached_activities_account
-    ON cached_activities (account_id, scope);
+    ON cached_activities (
+      account_id,
+      scope
+    );
   `);
+
+  // Migração não destrutiva:
+  // adiciona colunas aos bancos já existentes.
+  const columns =
+    await db.getAllAsync<ColumnInfoRow>(
+      "PRAGMA table_info(cached_activities)"
+    );
+
+  const existing = new Set(
+    columns.map((column) => column.name)
+  );
+
+  const migrations = [
+    {
+      name: "owner_name",
+      sql:
+        "ALTER TABLE cached_activities " +
+        "ADD COLUMN owner_name TEXT NOT NULL DEFAULT ''",
+    },
+    {
+      name: "interested_users_json",
+      sql:
+        "ALTER TABLE cached_activities " +
+        "ADD COLUMN interested_users_json TEXT NOT NULL DEFAULT '[]'",
+    },
+    {
+      name: "interest_count",
+      sql:
+        "ALTER TABLE cached_activities " +
+        "ADD COLUMN interest_count INTEGER NOT NULL DEFAULT 0",
+    },
+    {
+      name: "has_interest",
+      sql:
+        "ALTER TABLE cached_activities " +
+        "ADD COLUMN has_interest INTEGER NOT NULL DEFAULT 0",
+    },
+  ];
+
+  for (const migration of migrations) {
+    if (!existing.has(migration.name)) {
+      // SQL fixo, sem dados externos.
+      await db.execAsync(migration.sql);
+    }
+  }
 
   return db;
 }
 
-async function getDatabase() {
+async function getDatabase():
+  Promise<SQLite.SQLiteDatabase> {
   if (!databasePromise) {
     databasePromise =
-      initializeDatabase().catch((error) => {
-        databasePromise = null;
-        throw error;
-      });
+      initializeDatabase().catch(
+        (error) => {
+          databasePromise = null;
+          throw error;
+        }
+      );
   }
 
   return databasePromise;
 }
 
-// Insere ou atualiza um registro específico.
+// ==================================================
+// INSERIR OU ATUALIZAR LINHA
+// ==================================================
+
 async function upsertRow(
-  transaction: Pick<SQLite.SQLiteDatabase, "runAsync">,
+  transaction: Pick<
+    SQLite.SQLiteDatabase,
+    "runAsync"
+  >,
   accountId: string,
   scope: CacheScope,
   activity: Activity
-) {
+): Promise<void> {
   await transaction.runAsync(
     `
       INSERT INTO cached_activities (
@@ -152,13 +275,17 @@ async function upsertRow(
         scope,
         activity_id,
         owner_id,
+        owner_name,
         title,
         description,
         scheduled_at,
         location,
-        completed
+        completed,
+        interested_users_json,
+        interest_count,
+        has_interest
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 
       ON CONFLICT (
         account_id,
@@ -167,26 +294,36 @@ async function upsertRow(
       )
       DO UPDATE SET
         owner_id = excluded.owner_id,
+        owner_name = excluded.owner_name,
         title = excluded.title,
         description = excluded.description,
         scheduled_at = excluded.scheduled_at,
         location = excluded.location,
-        completed = excluded.completed
+        completed = excluded.completed,
+        interested_users_json = excluded.interested_users_json,
+        interest_count = excluded.interest_count,
+        has_interest = excluded.has_interest
     `,
     accountId,
     scope,
     activity.id,
     activity.ownerId,
+    activity.owner.name,
     activity.title,
     activity.description ?? null,
     getScheduledAt(activity),
     activity.location,
-    activity.completed ? 1 : 0
+    activity.completed ? 1 : 0,
+    JSON.stringify(activity.interestedUsers),
+    activity.interestCount,
+    activity.hasInterest ? 1 : 0
   );
 }
 
-// Salva uma lista completa recebida do servidor.
-// A transação evita um cache parcialmente atualizado.
+// ==================================================
+// SALVAR LISTA COMPLETA
+// ==================================================
+
 export async function replaceCachedActivities(
   accountId: string,
   scope: CacheScope,
@@ -206,7 +343,8 @@ export async function replaceCachedActivities(
         await transaction.runAsync(
           `
             DELETE FROM cached_activities
-            WHERE account_id = ? AND scope = ?
+            WHERE account_id = ?
+              AND scope = ?
           `,
           accountId,
           scope
@@ -230,7 +368,10 @@ export async function replaceCachedActivities(
             )
             VALUES (?, ?, ?)
 
-            ON CONFLICT (account_id, scope)
+            ON CONFLICT (
+              account_id,
+              scope
+            )
             DO UPDATE SET
               synced_at = excluded.synced_at
           `,
@@ -243,15 +384,19 @@ export async function replaceCachedActivities(
   });
 }
 
-// Recupera o cache somente da conta autenticada.
-// Retorna null caso nunca tenha sido sincronizado.
+// ==================================================
+// LER ATIVIDADES ARMAZENADAS
+// ==================================================
+
 export async function readCachedActivities(
   accountId: string,
   scope: CacheScope
 ): Promise<CachedActivities | null> {
-  if (!accountId) return null;
+  if (!accountId) {
+    return null;
+  }
 
-  // Aguarda escritas pendentes terminarem.
+  // Aguarda as escritas pendentes.
   await writeQueue;
 
   const db = await getDatabase();
@@ -261,7 +406,8 @@ export async function readCachedActivities(
       `
         SELECT synced_at
         FROM cache_metadata
-        WHERE account_id = ? AND scope = ?
+        WHERE account_id = ?
+          AND scope = ?
       `,
       accountId,
       scope
@@ -277,13 +423,21 @@ export async function readCachedActivities(
         SELECT
           activity_id,
           owner_id,
+          owner_name,
           title,
           description,
           scheduled_at,
           location,
-          completed
+          completed,
+          interested_users_json,
+          interest_count,
+          has_interest
+
         FROM cached_activities
-        WHERE account_id = ? AND scope = ?
+
+        WHERE account_id = ?
+          AND scope = ?
+
         ORDER BY scheduled_at ASC
       `,
       accountId,
@@ -296,13 +450,17 @@ export async function readCachedActivities(
   };
 }
 
-// Mantém o cache atualizado após criar,
-// editar ou alterar o status de uma atividade.
+// ==================================================
+// ATUALIZAR ATIVIDADE INDIVIDUAL
+// ==================================================
+
 export async function upsertCachedActivity(
   accountId: string,
   activity: Activity
 ): Promise<void> {
-  if (!accountId) return;
+  if (!accountId) {
+    return;
+  }
 
   return enqueueWrite(async () => {
     const db = await getDatabase();
@@ -315,21 +473,25 @@ export async function upsertCachedActivity(
         ];
 
         for (const scope of scopes) {
-          // Só atualiza listas que já tenham
-          // sido sincronizadas integralmente.
+          // Só altera listas já sincronizadas.
           const metadata =
             await transaction.getFirstAsync<CacheMetadataRow>(
               `
                 SELECT synced_at
                 FROM cache_metadata
-                WHERE account_id = ? AND scope = ?
+                WHERE account_id = ?
+                  AND scope = ?
               `,
               accountId,
               scope
             );
 
-          if (!metadata) continue;
+          if (!metadata) {
+            continue;
+          }
 
+          // Atividade de outro usuário não entra
+          // na lista Minhas atividades.
           if (
             scope === "mine" &&
             activity.ownerId !== accountId
@@ -349,13 +511,17 @@ export async function upsertCachedActivity(
   });
 }
 
-// Remove uma atividade das duas listas locais
-// depois que a API confirmar a exclusão.
+// ==================================================
+// REMOVER ATIVIDADE DO CACHE
+// ==================================================
+
 export async function removeCachedActivity(
   accountId: string,
   activityId: string
 ): Promise<void> {
-  if (!accountId) return;
+  if (!accountId) {
+    return;
+  }
 
   return enqueueWrite(async () => {
     const db = await getDatabase();
@@ -363,6 +529,7 @@ export async function removeCachedActivity(
     await db.runAsync(
       `
         DELETE FROM cached_activities
+
         WHERE account_id = ?
           AND activity_id = ?
       `,

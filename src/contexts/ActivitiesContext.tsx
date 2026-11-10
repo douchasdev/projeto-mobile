@@ -11,7 +11,6 @@ import {
 import type { ReactNode } from "react";
 
 import axios from "axios";
-
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import type {
@@ -25,10 +24,12 @@ import type { ApiActivity } from "../types/ApiActivity";
 import { useAuth } from "./AuthContext";
 
 import {
+  addActivityInterestRequest,
   createActivityRequest,
   deleteActivityRequest,
   getAllActivities,
   getMyActivities,
+  removeActivityInterestRequest,
   updateActivityRequest,
   updateActivityStatusRequest,
 } from "../services/activities.service";
@@ -75,6 +76,12 @@ type ActivitiesContextData = {
   usingOfflineCache: boolean;
   cachedAt: string | null;
 
+  interestPendingIds: string[];
+
+  toggleActivityInterest: (
+    id: string
+  ) => Promise<void>;
+
   refreshActivities: () => Promise<void>;
 
   addActivity: (
@@ -114,6 +121,7 @@ const ActivitiesContext =
 // FUNÇÕES AUXILIARES
 // ==================================================
 
+// Insere ou substitui uma atividade na lista.
 function upsertActivity(
   list: Activity[],
   activity: Activity
@@ -129,8 +137,22 @@ function upsertActivity(
   );
 }
 
-// O SQLite só deve ser usado quando a API
-// estiver indisponível, não quando ela negar acesso.
+// Substitui somente se a atividade já estiver
+// presente na lista. Evita inserir atividades
+// de outras pessoas em "Minhas atividades".
+function replaceActivityIfPresent(
+  list: Activity[],
+  activity: Activity
+): Activity[] {
+  return list.map((item) =>
+    item.id === activity.id
+      ? activity
+      : item
+  );
+}
+
+// O fallback para SQLite só pode ocorrer em
+// falhas de comunicação ou erros temporários.
 function canUseOfflineCache(
   requestError: unknown
 ): boolean {
@@ -140,22 +162,23 @@ function canUseOfflineCache(
 
   const status = requestError.response?.status;
 
-  // Falha de rede, timeout ou servidor inacessível.
+  // Falha de rede ou timeout.
   if (status === undefined) {
     return true;
   }
 
-  // Alguns erros temporários de infraestrutura.
+  // Problemas temporários.
   if (status === 408 || status === 429) {
     return true;
   }
 
-  // Erros do servidor.
+  // Erros internos do servidor.
   return status >= 500;
 }
 
-// Consulta a API primeiro e utiliza o SQLite
-// somente quando a comunicação falha.
+// Busca dados no backend.
+// Em caso de indisponibilidade, recupera
+// a última versão armazenada no SQLite.
 async function loadCollection(
   accountId: string,
   scope: CacheScope,
@@ -170,9 +193,8 @@ async function loadCollection(
       syncedAt: null,
     };
   } catch (requestError: unknown) {
-    // Não contorna 401, 403 ou outros erros
-    // de requisição/autorização usando o cache.
     if (!canUseOfflineCache(requestError)) {
+      // Nunca contorna 401 ou 403.
       throw requestError;
     }
 
@@ -201,7 +223,6 @@ async function loadCollection(
       );
     }
 
-    // Sem cache disponível: mantém o erro da API.
     throw requestError;
   }
 }
@@ -217,14 +238,14 @@ export function ActivitiesProvider({
 
   const currentUserId = user?.id ?? "";
 
-  // Dados das atividades.
+  // Atividades.
   const [activities, setActivities] =
     useState<Activity[]>([]);
 
   const [myActivities, setMyActivities] =
     useState<Activity[]>([]);
 
-  // Preferência persistida no AsyncStorage.
+  // Preferência: mostrar atividades concluídas.
   const [
     showCompleted,
     setShowCompletedState,
@@ -235,7 +256,7 @@ export function ActivitiesProvider({
     setPreferencesReady,
   ] = useState(false);
 
-  // Estados de carregamento da API.
+  // Estados de carregamento.
   const [loading, setLoading] =
     useState(true);
 
@@ -245,7 +266,7 @@ export function ActivitiesProvider({
   const [error, setError] =
     useState<string | null>(null);
 
-  // Estados do cache local.
+  // SQLite.
   const [
     usingOfflineCache,
     setUsingOfflineCache,
@@ -254,7 +275,16 @@ export function ActivitiesProvider({
   const [cachedAt, setCachedAt] =
     useState<string | null>(null);
 
-  // Controle de requisições assíncronas.
+  // Interesses em processamento.
+  const [
+    interestPendingIds,
+    setInterestPendingIds,
+  ] = useState<string[]>([]);
+
+  const interestLocksRef =
+    useRef<Set<string>>(new Set());
+
+  // Controle de requisições.
   const mountedRef = useRef(false);
   const loadedOnceRef = useRef(false);
 
@@ -264,14 +294,13 @@ export function ActivitiesProvider({
 
   const mutationVersionRef = useRef(0);
 
-  // Evita aplicar dados de uma conta anterior.
-  const activeUserRef =
-    useRef(currentUserId);
+  // Proteção contra troca de contas.
+  const activeUserRef = useRef(currentUserId);
 
   activeUserRef.current = currentUserId;
 
   // ==================================================
-  // ASYNCSTORAGE — CARREGAR PREFERÊNCIA
+  // CARREGAR PREFERÊNCIA DO ASYNCSTORAGE
   // ==================================================
 
   useEffect(() => {
@@ -320,7 +349,7 @@ export function ActivitiesProvider({
   }, [currentUserId]);
 
   // ==================================================
-  // ASYNCSTORAGE — SALVAR PREFERÊNCIA
+  // SALVAR PREFERÊNCIA NO ASYNCSTORAGE
   // ==================================================
 
   const setShowCompleted = useCallback(
@@ -332,13 +361,11 @@ export function ActivitiesProvider({
         return;
       }
 
-      // Atualiza a interface.
       setShowCompletedState(value);
 
       const storageKey =
         `${SHOW_COMPLETED_STORAGE_KEY}:${currentUserId}`;
 
-      // Persiste no armazenamento local.
       void AsyncStorage.setItem(
         storageKey,
         String(value)
@@ -362,13 +389,12 @@ export function ActivitiesProvider({
         return Promise.resolve();
       }
 
-      // Evita consultas duplicadas simultâneas.
+      // Evita chamadas simultâneas duplicadas.
       if (inFlightRefreshRef.current) {
         return inFlightRefreshRef.current;
       }
 
       const requestedUserId = currentUserId;
-
       const startedVersion =
         mutationVersionRef.current;
 
@@ -382,7 +408,6 @@ export function ActivitiesProvider({
         setError(null);
 
         try {
-          // Consulta as duas listas em paralelo.
           const [
             allResult,
             mineResult,
@@ -399,9 +424,8 @@ export function ActivitiesProvider({
             ),
           ]);
 
-          // Ignora resultados de outra conta,
-          // de componentes desmontados ou de
-          // consultas anteriores a uma mutação.
+          // Descarta dados de outra sessão
+          // ou anteriores a uma alteração.
           if (
             !mountedRef.current ||
             requestedUserId !==
@@ -415,15 +439,12 @@ export function ActivitiesProvider({
           setActivities(allResult.items);
           setMyActivities(mineResult.items);
 
-          // Identifica se alguma lista veio
-          // do SQLite.
           const offline =
             allResult.fromCache ||
             mineResult.fromCache;
 
           setUsingOfflineCache(offline);
 
-          // Recupera datas das cópias utilizadas.
           const cacheDates = [
             allResult,
             mineResult,
@@ -438,8 +459,6 @@ export function ActivitiesProvider({
                 result.syncedAt as string
             );
 
-          // Apresenta a sincronização mais antiga
-          // quando duas listas usam o cache.
           setCachedAt(
             cacheDates.length > 0
               ? cacheDates.sort()[0]
@@ -448,8 +467,8 @@ export function ActivitiesProvider({
 
           setError(null);
 
-          // Persiste somente as listas realmente
-          // recebidas do servidor.
+          // Atualiza o SQLite somente quando
+          // a API retornou os dados.
           const cacheWrites: Promise<void>[] = [];
 
           if (!allResult.fromCache) {
@@ -472,8 +491,6 @@ export function ActivitiesProvider({
             );
           }
 
-          // Uma falha do SQLite não pode invalidar
-          // dados que vieram corretamente da API.
           await Promise.all(
             cacheWrites.map((write) =>
               write.catch((cacheError) => {
@@ -517,8 +534,7 @@ export function ActivitiesProvider({
 
       const clearRequest = () => {
         if (
-          inFlightRefreshRef.current ===
-          request
+          inFlightRefreshRef.current === request
         ) {
           inFlightRefreshRef.current = null;
         }
@@ -541,12 +557,11 @@ export function ActivitiesProvider({
   useEffect(() => {
     mountedRef.current = true;
 
-    // Invalida consultas anteriores.
+    // Invalida requisições anteriores.
     mutationVersionRef.current += 1;
     inFlightRefreshRef.current = null;
     loadedOnceRef.current = false;
 
-    // Limpa os dados que estavam na memória.
     setActivities([]);
     setMyActivities([]);
 
@@ -557,8 +572,11 @@ export function ActivitiesProvider({
     setUsingOfflineCache(false);
     setCachedAt(null);
 
+    interestLocksRef.current.clear();
+    setInterestPendingIds([]);
+
     void refreshActivities().catch(() => {
-      // O erro será disponibilizado no contexto.
+      // Erro disponível no contexto.
     });
 
     return () => {
@@ -585,11 +603,8 @@ export function ActivitiesProvider({
       );
     }
 
-    const title =
-      activity.title.trim();
-
-    const location =
-      activity.location.trim();
+    const title = activity.title.trim();
+    const location = activity.location.trim();
 
     if (!title || !location) {
       throw new Error(
@@ -597,23 +612,22 @@ export function ActivitiesProvider({
       );
     }
 
-    // A criação continua sendo feita na API.
-    const saved = await createActivityRequest({
-      title,
-      description:
-        activity.description?.trim() ?? "",
-      scheduledAt: toScheduledAt(
-        activity.date,
-        activity.time
-      ),
-      location,
-    });
+    const saved =
+      await createActivityRequest({
+        title,
+        description:
+          activity.description?.trim() ?? "",
+        scheduledAt: toScheduledAt(
+          activity.date,
+          activity.time
+        ),
+        location,
+      });
 
     const mapped = fromApiActivity(saved);
 
     mutationVersionRef.current += 1;
 
-    // Atualiza o estado em memória.
     setActivities((current) =>
       upsertActivity(current, mapped)
     );
@@ -624,8 +638,7 @@ export function ActivitiesProvider({
 
     setError(null);
 
-    // Atualiza o SQLite somente depois
-    // da confirmação do MySQL.
+    // Persiste após sucesso da API.
     try {
       await upsertCachedActivity(
         currentUserId,
@@ -659,28 +672,20 @@ export function ActivitiesProvider({
       );
     }
 
-    const title =
-      changes.title.trim();
-
-    const location =
-      changes.location.trim();
+    const title = changes.title.trim();
+    const location = changes.location.trim();
 
     if (!title || !location) {
       return false;
     }
 
     if (
-      Number.isNaN(
-        changes.date.getTime()
-      ) ||
-      Number.isNaN(
-        changes.time.getTime()
-      )
+      Number.isNaN(changes.date.getTime()) ||
+      Number.isNaN(changes.time.getTime())
     ) {
       return false;
     }
 
-    // Atualiza a atividade no MySQL.
     const updated =
       await updateActivityRequest(
         id,
@@ -696,8 +701,7 @@ export function ActivitiesProvider({
         }
       );
 
-    const mapped =
-      fromApiActivity(updated);
+    const mapped = fromApiActivity(updated);
 
     mutationVersionRef.current += 1;
 
@@ -745,11 +749,9 @@ export function ActivitiesProvider({
       );
     }
 
-    const existing =
-      myActivities.find(
-        (activity) =>
-          activity.id === id
-      );
+    const existing = myActivities.find(
+      (activity) => activity.id === id
+    );
 
     if (!existing) {
       throw new Error(
@@ -757,25 +759,19 @@ export function ActivitiesProvider({
       );
     }
 
-    if (
-      existing.ownerId !==
-      currentUserId
-    ) {
+    if (existing.ownerId !== currentUserId) {
       throw new Error(
         "Você não pode modificar esta atividade."
       );
     }
 
-    // A API continua sendo responsável
-    // pela alteração do status.
     const updated =
       await updateActivityStatusRequest(
         id,
         !existing.completed
       );
 
-    const mapped =
-      fromApiActivity(updated);
+    const mapped = fromApiActivity(updated);
 
     mutationVersionRef.current += 1;
 
@@ -803,6 +799,145 @@ export function ActivitiesProvider({
   }
 
   // ==================================================
+  // POST /activities/:id/interests
+  // DELETE /activities/:id/interests/me
+  // ==================================================
+
+  async function toggleActivityInterest(
+    id: string
+  ): Promise<void> {
+    if (!currentUserId) {
+      throw new Error(
+        "É necessário estar autenticado."
+      );
+    }
+
+    if (usingOfflineCache) {
+      throw new Error(
+        "Não é possível alterar interesses no modo offline."
+      );
+    }
+
+    const existing = activities.find(
+      (activity) => activity.id === id
+    );
+
+    if (!existing) {
+      throw new Error(
+        "Atividade não encontrada."
+      );
+    }
+
+    if (existing.ownerId === currentUserId) {
+      throw new Error(
+        "Você não pode demonstrar interesse na sua própria atividade."
+      );
+    }
+
+    // Impede múltiplos toques simultâneos.
+    if (interestLocksRef.current.has(id)) {
+      return;
+    }
+
+    const requestedUserId = currentUserId;
+
+    interestLocksRef.current.add(id);
+
+    setInterestPendingIds((current) => [
+      ...current,
+      id,
+    ]);
+
+    try {
+      let updated: Activity;
+
+      if (existing.hasInterest) {
+        // Retira o interesse no backend.
+        // DELETE retorna 204, sem corpo JSON.
+        await removeActivityInterestRequest(id);
+
+        const interestedUsers =
+          existing.interestedUsers.filter(
+            (user) =>
+              user.id !== requestedUserId
+          );
+
+        updated = {
+          ...existing,
+          interestedUsers,
+          interestCount: Math.max(
+            0,
+            existing.interestCount - 1
+          ),
+          hasInterest: false,
+        };
+      } else {
+        // Registra o interesse no backend.
+        // POST retorna a atividade atualizada.
+        const response =
+          await addActivityInterestRequest(id);
+
+        updated = fromApiActivity(response);
+      }
+
+      // Não modifica dados de outra conta.
+      if (
+        requestedUserId !==
+        activeUserRef.current
+      ) {
+        return;
+      }
+
+      mutationVersionRef.current += 1;
+
+      // Atualiza os cartões sem precisar
+      // recarregar toda a Home.
+      setActivities((current) =>
+        replaceActivityIfPresent(
+          current,
+          updated
+        )
+      );
+
+      setMyActivities((current) =>
+        replaceActivityIfPresent(
+          current,
+          updated
+        )
+      );
+
+      setError(null);
+
+      // Mantém a cópia local sincronizada.
+      try {
+        await upsertCachedActivity(
+          requestedUserId,
+          updated
+        );
+      } catch (cacheError: unknown) {
+        console.error(
+          "Falha ao atualizar SQLite após alteração de interesse:",
+          cacheError
+        );
+      }
+    } finally {
+      interestLocksRef.current.delete(id);
+
+      if (
+        requestedUserId ===
+        activeUserRef.current
+      ) {
+        setInterestPendingIds((current) =>
+          current.filter(
+            (pendingId) =>
+              pendingId !== id
+          )
+        );
+      }
+    }
+  }
+
+  // ==================================================
   // DELETE /activities/:id
   // ==================================================
 
@@ -821,8 +956,7 @@ export function ActivitiesProvider({
       );
     }
 
-    // A API verifica se o usuário
-    // é proprietário da atividade.
+    // A API verifica se o usuário é o criador.
     await deleteActivityRequest(id);
 
     mutationVersionRef.current += 1;
@@ -843,8 +977,6 @@ export function ActivitiesProvider({
 
     setError(null);
 
-    // Remove a cópia local após
-    // confirmar a exclusão na API.
     try {
       await removeCachedActivity(
         currentUserId,
@@ -881,6 +1013,9 @@ export function ActivitiesProvider({
         usingOfflineCache,
         cachedAt,
 
+        interestPendingIds,
+        toggleActivityInterest,
+
         refreshActivities,
 
         addActivity,
@@ -899,8 +1034,9 @@ export function ActivitiesProvider({
 // ==================================================
 
 export function useActivities() {
-  const context =
-    useContext(ActivitiesContext);
+  const context = useContext(
+    ActivitiesContext
+  );
 
   if (!context) {
     throw new Error(

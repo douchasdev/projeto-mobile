@@ -5,6 +5,7 @@ import { useFocusEffect } from "expo-router";
 
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   Text,
@@ -18,13 +19,17 @@ import ActivityCard from "../../components/ActivityCard/ActivityCard";
 import { useActivities } from "../../contexts/ActivitiesContext";
 import { useTheme } from "../../contexts/ThemeContext";
 
+import { getApiErrorMessage } from "../../services/api";
+
 import { createHomeStyles } from "../../styles/index.styles";
 
 export default function HomeScreen() {
   const { colors } = useTheme();
+
   const styles = createHomeStyles(colors);
 
   const {
+    currentUserId,
     activities,
     showCompleted,
     loading,
@@ -32,9 +37,13 @@ export default function HomeScreen() {
     error,
     usingOfflineCache,
     cachedAt,
+    interestPendingIds,
+    toggleActivityInterest,
     refreshActivities,
   } = useActivities();
 
+  // Atualiza as atividades quando a Home
+  // recebe o foco.
   useFocusEffect(
     useCallback(() => {
       void refreshActivities().catch(() => {});
@@ -51,13 +60,38 @@ export default function HomeScreen() {
     void refreshActivities().catch(() => {});
   }
 
+  async function handleToggleInterest(
+    id: string
+  ) {
+    try {
+      await toggleActivityInterest(id);
+    } catch (requestError: unknown) {
+      Alert.alert(
+        "Não foi possível alterar o interesse",
+        getApiErrorMessage(requestError)
+      );
+    }
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <FlatList
         data={visibleActivities}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <ActivityCard activity={item} />
+          <ActivityCard
+            activity={item}
+            showInterestAction={
+              item.ownerId !== currentUserId
+            }
+            onToggleInterest={() => {
+              void handleToggleInterest(item.id);
+            }}
+            interestLoading={
+              interestPendingIds.includes(item.id)
+            }
+            interestDisabled={usingOfflineCache}
+          />
         )}
         refreshing={refreshing}
         onRefresh={handleRefresh}
@@ -78,6 +112,7 @@ export default function HomeScreen() {
               inclusive as suas.
             </Text>
 
+            {/* Aviso do SQLite */}
             {usingOfflineCache && (
               <View
                 style={{
@@ -96,7 +131,7 @@ export default function HomeScreen() {
                     fontWeight: "700",
                   }}
                 >
-                  Dados locais
+                  Dados locais — somente leitura
                 </Text>
 
                 <Text
@@ -106,9 +141,10 @@ export default function HomeScreen() {
                   }}
                 >
                   A API está indisponível para uma
-                  ou mais listas. Os dados foram
-                  recuperados do SQLite e podem
-                  estar desatualizados.
+                  ou mais listas. Os dados,
+                  incluindo os interessados,
+                  foram recuperados do SQLite
+                  e podem estar desatualizados.
                 </Text>
 
                 {cachedAt && (
@@ -145,6 +181,7 @@ export default function HomeScreen() {
               </View>
             )}
 
+            {/* Erro de conexão */}
             {error && (
               <View style={styles.errorBox}>
                 <Text style={styles.errorText}>

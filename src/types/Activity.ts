@@ -1,18 +1,29 @@
 
+export type ActivityUser = {
+  id: string;
+  name: string;
+};
+
 export type Activity = {
   id: string;
   ownerId: string;
+  owner: ActivityUser;
   title: string;
   description?: string;
   date: Date;
   time: Date;
   location: string;
   completed: boolean;
+  interestedUsers: ActivityUser[];
+  interestCount: number;
+  hasInterest: boolean;
 };
 
-export type NewActivity = Omit<
+// Campos informados pelo usuário ao criar uma atividade.
+// Proprietário e interessados vêm do backend.
+export type NewActivity = Pick<
   Activity,
-  "id" | "ownerId" | "completed"
+  "title" | "description" | "date" | "time" | "location"
 >;
 
 export type UpdateActivity = Pick<

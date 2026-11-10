@@ -73,6 +73,13 @@ export function createActivityCardStyles(
       color: colors.textSecondary,
     },
 
+    owner: {
+      color: colors.text,
+      fontSize: 13,
+      fontWeight: "600",
+      marginBottom: 8,
+    },
+
     location: {
       fontSize: 14,
       color: colors.textSecondary,
@@ -83,6 +90,58 @@ export function createActivityCardStyles(
       fontSize: 13,
       color: colors.textSecondary,
       marginTop: 8,
+    },
+
+    interestsSection: {
+      marginTop: 14,
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderColor: colors.border,
+      gap: 6,
+    },
+
+    interestsHeading: {
+      color: colors.text,
+      fontSize: 14,
+      fontWeight: "600",
+    },
+
+    interestedNames: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      lineHeight: 19,
+    },
+
+    interestButton: {
+      alignSelf: "flex-start",
+      backgroundColor: colors.primarySurface,
+      borderColor: colors.primary,
+      borderWidth: 1,
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 9,
+      minHeight: 40,
+      justifyContent: "center",
+      marginTop: 6,
+    },
+
+    interestButtonActive: {
+      backgroundColor: colors.surfaceAlt,
+      borderColor: colors.border,
+    },
+
+    interestButtonDisabled: {
+      opacity: 0.5,
+    },
+
+    interestButtonText: {
+      color: colors.primary,
+      fontWeight: "600",
+      fontSize: 13,
+    },
+
+    interestButtonTextActive: {
+      color: colors.text,
     },
 
     editButton: {
